@@ -103,6 +103,26 @@ class CameraListResponse(FlexibleModel):
     cameras: List[CameraInfo]
 
 
+class VisualCheckListResponse(FlexibleModel):
+    checks: List[Dict[str, Any]]
+
+
+class VisualCheckRunResponse(FlexibleModel):
+    schema_version: Optional[str] = None
+    check_id: Optional[str] = None
+    status: Optional[str] = None
+    captured_at: Optional[str] = None
+    source: Optional[Dict[str, Any]] = None
+    model: Optional[Dict[str, Any]] = None
+    result: Optional[Dict[str, Any]] = None
+    assertions: Optional[List[Dict[str, Any]]] = None
+    error: Optional[str] = None
+    artifacts: Optional[Dict[str, Any]] = None
+    group: Optional[str] = None
+    count: Optional[int] = None
+    results: Optional[List[Dict[str, Any]]] = None
+
+
 class EmptyActionParams(StrictModel):
     pass
 

@@ -14,6 +14,7 @@ A successful agent run:
 4. Uses dedicated endpoints rather than inventing a generic action API.
 5. Treats garage door and other physical actions as sensitive operations.
 6. Reports the actual API response, including notification status when present.
+7. Uses `visual_check` CLI or HTTP endpoints for configured camera-based state checks instead of free-form image guessing.
 
 ## Public/Private Split
 
@@ -47,6 +48,29 @@ Garage doors are sensitive physical actions.
 2. Do not use or invent GET garage toggle endpoints.
 3. Remember that the action is a trigger/toggle, not a guaranteed absolute open/close command unless the deployment provides reliable sensor state.
 4. If notification is configured, check the response's `notification.sent` field and report it.
+5. When a garage action needs verification and a visual check is configured, run a fresh visual check after the action rather than relying on cached or inferred door state.
+
+## Visual Checks
+
+`visual_check` is the generic camera + local vision model subsystem. It converts a configured camera snapshot into schema-validated JSON, saves artifacts, and evaluates deterministic assertions.
+
+Use the live OpenAPI schema for HTTP routes:
+
+```text
+GET /api/visual-checks
+POST /api/visual-checks/{check_id}/run
+POST /api/visual-checks/groups/{group}/run
+```
+
+For local agent workflows, the CLI is often simpler:
+
+```bash
+python scripts/visual_check.py list
+python scripts/visual_check.py --json run <check_id>
+python scripts/visual_check.py --json run-all --group nightly
+```
+
+Read only the JSON result for automation decisions. Do not re-interpret the image unless the CLI or API fails. If `status` is `problem` or an assertion failed, report the failed assertion and artifact path. If `status` is `failed`, report `error` and do not treat the physical state as known.
 
 ## Known Pitfalls
 

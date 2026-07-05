@@ -80,6 +80,7 @@ Rule: **OpenAPI defines what can be called. Private overlay defines what should 
 | Persistence | `models/database.py` | SQLite history storage |
 | Device adapters | `services/*_service.py` | Integration-specific control and status logic |
 | Scheduling | `services/dynamic_scheduler.py`, `services/scheduler.py` | Delayed actions and recurring state collection |
+| Visual checks | `services/visual_check_service.py`, `api/visual_check.py`, `scripts/visual_check.py` | Camera snapshot inspection through a local vision model with schema validation |
 
 ## Device Integration Notes
 
@@ -92,6 +93,14 @@ Rinnai uses cloud credentials and may fail independently of local devices. Aggre
 Meross garage control uses cloud login only to discover the device and signing key. The actual trigger uses local HTTP `/config` with Meross signatures. Door state is not treated as authoritative when the physical sensor is absent or unreliable.
 
 Camera snapshots are proxied on demand. Images are not stored by the backend.
+
+Visual checks consume camera snapshots or configured HTTP snapshot URLs, call an OpenAI-compatible local LM Studio endpoint, validate the model response against a configured JSON Schema, and save per-run artifacts under an ignored data directory. The HTTP endpoint and CLI are thin wrappers over `VisualCheckService`; they do not duplicate prompt, validation, retry, or artifact logic.
+
+Prompt files and JSON Schema files are intentionally separate. Prompts describe visual interpretation rules, including local camera perspective conventions. Schemas define the machine contract consumed by automations and tests. Assertions are deterministic post-processing rules over the validated JSON, such as `$.overall.any_door_open == false`.
+
+The system does not maintain authoritative derived state for camera-observed objects. A visual check result is a timestamped observation. Nightly jobs or post-action verification should run a fresh check instead of reading a cached door state.
+
+Measurement sets are part of the design. Public fixtures use synthetic images plus ground truth JSON so CI can demonstrate evaluation mechanics without exposing a real home. Private deployments should keep real camera images and local ground truth under ignored paths such as `data/visual_checks/measurement_sets/`.
 
 ## Startup and macOS Local Network Permissions
 
