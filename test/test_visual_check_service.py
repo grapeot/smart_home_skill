@@ -38,7 +38,7 @@ async def test_visual_check_validates_schema_and_assertions(tmp_path):
     prompt = tmp_path / "prompt.md"
     prompt.write_text("inspect", encoding="utf-8")
     schema = ROOT / "config/visual_check_schemas/example_garage.schema.json"
-    image = ROOT / "test/fixtures/visual_check/synthetic_garage_after.svg"
+    image = ROOT / "test/fixtures/visual_check/synthetic_garage_after.jpg"
     ground_truth = json.loads((ROOT / "test/fixtures/visual_check/synthetic_garage_after.ground_truth.json").read_text())
     config_path = write_config(tmp_path, schema, prompt, image)
 
@@ -46,7 +46,7 @@ async def test_visual_check_validates_schema_and_assertions(tmp_path):
 
     with patch.object(service, "_ensure_lmstudio"), patch.object(service, "_fetch_snapshot") as snapshot, patch.object(service, "_call_lmstudio") as call:
         snapshot.return_value.content = image.read_bytes()
-        snapshot.return_value.mime_type = "image/svg+xml"
+        snapshot.return_value.mime_type = "image/jpeg"
         snapshot.return_value.source = {"type": "http_snapshot", "url": "http://example.test/snapshot.svg"}
         call.return_value = {"choices": [{"message": {"content": json.dumps(ground_truth)}}]}
 
@@ -63,14 +63,14 @@ async def test_visual_check_retries_invalid_json(tmp_path):
     prompt = tmp_path / "prompt.md"
     prompt.write_text("inspect", encoding="utf-8")
     schema = ROOT / "config/visual_check_schemas/example_garage.schema.json"
-    image = ROOT / "test/fixtures/visual_check/synthetic_garage_after.svg"
+    image = ROOT / "test/fixtures/visual_check/synthetic_garage_after.jpg"
     ground_truth = json.loads((ROOT / "test/fixtures/visual_check/synthetic_garage_after.ground_truth.json").read_text())
     config_path = write_config(tmp_path, schema, prompt, image)
     service = VisualCheckService(str(config_path))
 
     with patch.object(service, "_ensure_lmstudio"), patch.object(service, "_fetch_snapshot") as snapshot, patch.object(service, "_call_lmstudio") as call:
         snapshot.return_value.content = image.read_bytes()
-        snapshot.return_value.mime_type = "image/svg+xml"
+        snapshot.return_value.mime_type = "image/jpeg"
         snapshot.return_value.source = {"type": "http_snapshot", "url": "http://example.test/snapshot.svg"}
         call.side_effect = [
             {"choices": [{"message": {"content": "not json"}}]},
