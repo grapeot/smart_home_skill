@@ -51,3 +51,5 @@ tools/
 data/
 config/wemo_config.yaml
 config/cameras.yaml
+config/vision_checks.yaml
+config/visual_check_private/

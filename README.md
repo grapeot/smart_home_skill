@@ -15,6 +15,7 @@ The core contract is simple: **OpenAPI defines what can be called; private overl
 | Rinnai | Water heater status and recirculation through `aiorinnai` |
 | Meross | Garage door trigger through local HTTP `/config`; cloud credentials are used only to discover the local device and signing key |
 | Amcrest | Local camera snapshot proxy through Digest Auth |
+| Visual Check | Camera snapshot + local LM Studio vision model for schema-validated visual state checks |
 
 ## Design Principles
 
@@ -103,8 +104,24 @@ Common dedicated endpoints include:
 | `POST /api/garage/{door}/toggle` | Sensitive garage trigger through Meross local HTTP |
 | `GET /api/history?hours=24` | Recent device history |
 | `GET /api/cameras` | Configured camera list |
+| `GET /api/visual-checks` | Configured visual checks |
+| `POST /api/visual-checks/{check_id}/run` | Run one visual check |
 
 Treat this table as orientation only. Use `/openapi.json` for the live contract.
+
+## Visual Checks
+
+`visual_check` turns camera observations into structured JSON. It is useful for states where sensors are unavailable or unreliable, such as a garage door or side gate. The implementation is generic: local deployments configure the snapshot source, prompt, output JSON Schema, retry policy, and assertions.
+
+CLI examples:
+
+```bash
+python scripts/visual_check.py list
+python scripts/visual_check.py --json run example_garage
+python scripts/visual_check.py --json run-all --group nightly
+```
+
+Copy `config/vision_checks.example.yaml` to ignored `config/vision_checks.yaml` and replace example camera ids, prompts, schemas, and model settings. Public fixtures under `test/fixtures/visual_check/` demonstrate the measurement-set pattern with synthetic images and ground truth JSON. Real camera measurement sets should stay under ignored `data/visual_checks/measurement_sets/`.
 
 ## Optional Garage Notifications
 

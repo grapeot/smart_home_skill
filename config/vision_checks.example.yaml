@@ -1,0 +1,29 @@
+# Example visual check configuration. Copy to config/vision_checks.yaml and edit locally.
+# Keep real camera ids, URLs, prompts, recipients, and household policies out of git.
+
+lmstudio:
+  api_base: "http://127.0.0.1:1234/v1"
+  model: "qwen/qwen3.5-35b-a3b"
+  timeout_seconds: 180
+  max_tokens: 1200
+  launch:
+    enabled: true
+    command: ["open", "-a", "LM Studio"]
+    wait_seconds: 90
+
+artifact_dir: "data/visual_checks"
+retries: 1
+
+checks:
+  example_garage:
+    group: nightly
+    source:
+      type: camera_snapshot
+      camera_id: example_garage
+    prompt_file: "config/visual_check_prompts/example_garage.md"
+    schema_file: "config/visual_check_schemas/example_garage.schema.json"
+    retries: 1
+    assertions:
+      - name: all_doors_closed
+        path: "$.overall.any_door_open"
+        equals: false

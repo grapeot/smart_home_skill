@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Example garage visual check result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cars", "garage_doors", "overall"],
+  "properties": {
+    "cars": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["bay", "color", "confidence"],
+        "properties": {
+          "bay": {"type": "string"},
+          "color": {"type": "string"},
+          "confidence": {"enum": ["low", "medium", "high"]}
+        }
+      }
+    },
+    "garage_doors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["bay", "state", "confidence"],
+        "properties": {
+          "bay": {"type": "string"},
+          "state": {"enum": ["open", "closed", "uncertain"]},
+          "confidence": {"enum": ["low", "medium", "high"]}
+        }
+      }
+    },
+    "overall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["car_count", "door_count", "any_door_open", "all_visible_doors_closed"],
+      "properties": {
+        "car_count": {"type": "integer", "minimum": 0},
+        "door_count": {"type": "integer", "minimum": 0},
+        "any_door_open": {"type": "boolean"},
+        "all_visible_doors_closed": {"type": "boolean"}
+      }
+    }
+  }
+}

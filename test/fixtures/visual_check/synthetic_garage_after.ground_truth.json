@@ -1,0 +1,16 @@
+{
+  "cars": [
+    {"bay": "left", "color": "white", "confidence": "high"},
+    {"bay": "right", "color": "black", "confidence": "high"}
+  ],
+  "garage_doors": [
+    {"bay": "left", "state": "closed", "confidence": "high"},
+    {"bay": "right", "state": "closed", "confidence": "high"}
+  ],
+  "overall": {
+    "car_count": 2,
+    "door_count": 2,
+    "any_door_open": false,
+    "all_visible_doors_closed": true
+  }
+}
