@@ -1,6 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useDeviceStore } from '../stores/deviceStore';
 import { useCameras } from '../hooks/useCameras';
+import type { RingSensorStatus } from '../types';
+
+function isContactSensor(device: RingSensorStatus): boolean {
+  const source = `${device.device_type ?? ''} ${device.derived_state ?? ''}`.toLowerCase();
+  return source.includes('contact');
+}
+
+function sensorState(device: RingSensorStatus): string {
+  if (device.derived_state) return device.derived_state;
+  if (typeof device.faulted === 'boolean') return device.faulted ? 'Open' : 'Closed';
+  return 'Unknown';
+}
 
 export function ControlTab() {
   const { status, loading, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage } = useDeviceStore();
@@ -20,12 +32,15 @@ export function ControlTab() {
     };
 
     fetchStatus(['hue', 'rinnai', 'garage']);
+    fetchStatus(['ring']);
     fetchWemoStatus();
     const fastInterval = setInterval(() => fetchStatus(['hue', 'rinnai', 'garage']), 10000);
+    const ringInterval = setInterval(() => fetchStatus(['ring']), 30000);
     const wemoInterval = setInterval(fetchWemoStatus, 30000);
     return () => {
       cancelled = true;
       clearInterval(fastInterval);
+      clearInterval(ringInterval);
       clearInterval(wemoInterval);
     };
   }, [fetchStatus]);
@@ -58,12 +73,16 @@ export function ControlTab() {
   );
   const garageSnapshotUrl = garageCamera ? getSnapshotUrl(garageCamera.id) : null;
   const garageSnapshotSrc = garageSnapshotUrl ? `${garageSnapshotUrl}?t=${garageImageKey}` : null;
-  const garageDoors = status?.garage
-    ? Array.from({ length: Math.min(status.garage.door_count, 2) }, (_, i) => {
+  const garageStatus = status?.garage;
+  const garageDoors = garageStatus
+    ? Array.from({ length: Math.min(garageStatus.door_count, 2) }, (_, i) => {
         const index = i + 1;
-        return status.garage.doors?.find(door => door.index === index) ?? { index, label: `Garage door ${index}` };
+        return garageStatus.doors?.find(door => door.index === index) ?? { index, label: `Garage door ${index}` };
       })
     : [];
+  const contactSensors = (status?.ring?.locations ?? [])
+    .flatMap(location => location.devices ?? [])
+    .filter(isContactSensor);
 
   return (
     <div className="space-y-4">
@@ -257,6 +276,42 @@ export function ControlTab() {
           </div>
         </section>
       )}
+
+      {/* Contact sensors */}
+      <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-4 py-3 bg-gradient-to-r from-purple-50 to-slate-50 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-800 flex items-center">
+            <span className="text-xl mr-2">🛡️</span>
+            Contact sensors
+          </h2>
+        </div>
+        <div className="divide-y divide-gray-50">
+          {status?.ring?.error && (
+            <div className="px-4 py-3 text-sm text-amber-700 bg-amber-50">
+              {status.ring.configured === false ? 'Ring is not configured on this host.' : status.ring.error}
+            </div>
+          )}
+          {!status?.ring && (
+            <div className="px-4 py-3 text-sm text-gray-500">Loading contact sensors...</div>
+          )}
+          {status?.ring && contactSensors.length === 0 && !status.ring.error && (
+            <div className="px-4 py-3 text-sm text-gray-500">No contact sensors reported.</div>
+          )}
+          {contactSensors.map((sensor, index) => (
+            <div key={`${sensor.name}-${index}`} className="flex items-center justify-between px-4 py-3">
+              <div>
+                <div className="font-medium text-gray-900">{sensor.name || 'Unnamed contact sensor'}</div>
+                <div className="text-sm text-gray-500">
+                  {typeof sensor.battery_level === 'number' ? `Battery ${sensor.battery_level}%` : sensor.battery_status ? `Battery ${sensor.battery_status}` : 'Battery unknown'}
+                </div>
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sensor.faulted ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                {sensorState(sensor)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Water heater */}
       <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

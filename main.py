@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 import uvicorn
 
-from api import hue, wemo, rinnai, garage, status, history, cameras, schedule, visual_check
+from api import hue, wemo, rinnai, garage, status, history, cameras, schedule, visual_check, ring
 from models.schemas import HealthResponse
 from services.hue_service import hue_service
 from services.wemo_service import wemo_service
@@ -181,6 +181,7 @@ app.include_router(history.router)
 app.include_router(cameras.router)
 app.include_router(schedule.router)
 app.include_router(visual_check.router)
+app.include_router(ring.router)
 
 @app.get("/health", response_model=HealthResponse, tags=["health"], summary="Health check")
 async def health_check():

@@ -80,6 +80,16 @@ For contact sensors, `faulted=true` is treated as `derived_state=open_or_faulted
 
 For the first run, use `--include-raw` and manually inspect the real fields returned by Ring. Different Ring devices may expose slightly different field names.
 
+## Smart Home API and UI
+
+The backend exposes a read-only Ring status endpoint at `GET /api/ring/status` and includes Ring in `GET /api/status?devices=ring`. Both paths call the same local pull script and read the ignored private config file at `config/ring_client_status.json`.
+
+The API intentionally sanitizes Ring identifiers before returning data to the browser. It keeps display names and sensor state fields, but does not expose Ring location IDs, device IDs, room IDs, parent IDs, refresh tokens, or raw vendor payloads.
+
+The frontend has two Ring surfaces. The Control tab shows contact sensors only, directly below Garage doors. The Ring tab shows all Ring sensors, including motion sensors, and includes a manual Refresh button.
+
+Ring status is cached in browser `localStorage` for 60 seconds under `smart_home:ring_status:v1`. Switching from Control to Ring within that TTL reuses the cached status instead of triggering another pull. The manual Refresh button bypasses the cache and writes the fresh result back to the same cache key.
+
 ## MVP Acceptance Criteria
 
 1. The script logs in with a refresh token and returns at least one location.

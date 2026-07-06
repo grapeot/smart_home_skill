@@ -57,6 +57,37 @@ class GarageStatus(FlexibleModel):
     doors: Optional[List[Dict[str, Any]]] = None
 
 
+class RingSensorStatus(FlexibleModel):
+    name: Optional[str] = None
+    device_type: Optional[str] = None
+    category_id: Optional[int] = None
+    faulted: Optional[bool] = None
+    derived_state: Optional[str] = None
+    tamper_status: Optional[str] = None
+    comm_status: Optional[str] = None
+    battery_level: Optional[int] = None
+    battery_status: Optional[str] = None
+    last_update: Optional[Any] = None
+    last_comm_time: Optional[Any] = None
+
+
+class RingLocationStatus(FlexibleModel):
+    name: Optional[str] = None
+    has_hubs: Optional[bool] = None
+    has_alarm_base_station: Optional[bool] = None
+    devices: List[RingSensorStatus] = Field(default_factory=list)
+
+
+class RingStatusResponse(FlexibleModel):
+    schema_version: Optional[str] = None
+    source: Optional[str] = None
+    observed_at: Optional[str] = None
+    locations: List[RingLocationStatus] = Field(default_factory=list)
+    updated_refresh_token_available: Optional[bool] = None
+    configured: bool = True
+    error: Optional[str] = None
+
+
 class NotificationResult(FlexibleModel):
     enabled: Optional[bool] = None
     sent: Optional[bool] = None
@@ -85,6 +116,7 @@ class AllStatusResponse(FlexibleModel):
     wemo: Optional[Dict[str, WemoDeviceStatus]] = None
     rinnai: Optional[RinnaiStatus] = None
     garage: Optional[GarageStatus] = None
+    ring: Optional[RingStatusResponse] = None
 
 
 class HistoryRecord(FlexibleModel):
@@ -218,4 +250,4 @@ class ScheduledActionListResponse(FlexibleModel):
     actions: List[ScheduledActionResponse]
 
 
-DeviceKind = Literal["hue", "wemo", "rinnai", "garage"]
+DeviceKind = Literal["hue", "wemo", "rinnai", "garage", "ring"]
