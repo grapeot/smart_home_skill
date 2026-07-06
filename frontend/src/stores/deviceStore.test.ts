@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useDeviceStore } from './deviceStore'
+import type { DeviceStatus } from '../types'
 
 describe('deviceStore', () => {
   beforeEach(() => {
@@ -21,14 +22,13 @@ describe('deviceStore', () => {
       json: () => Promise.resolve({ wemo: { coffee: { is_on: true } } }),
     } as Response)
 
-    useDeviceStore.setState({
-      status: {
-        hue: { name: 'Baby room', is_on: true, brightness: 128 } as any,
-        wemo: {},
-        rinnai: {} as any,
-        garage: {} as any,
-      },
-    })
+    const initialStatus: DeviceStatus = {
+      hue: { name: 'Baby room', is_on: true, brightness: 128 },
+      wemo: {},
+      rinnai: { is_online: true },
+      garage: { door_count: 2, available: true },
+    }
+    useDeviceStore.setState({ status: initialStatus })
 
     await useDeviceStore.getState().fetchStatus(['wemo'])
 

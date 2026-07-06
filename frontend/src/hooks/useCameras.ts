@@ -54,7 +54,7 @@ export function useCameras() {
     }));
   };
 
-  const getSnapshotUrl = (id: string) => `/api/cameras/snapshot/${id}`;
+  const getSnapshotUrl = (id: string) => `/api/cameras/snapshot/${encodeURIComponent(id)}`;
 
   return {
     cameras,

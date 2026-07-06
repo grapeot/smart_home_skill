@@ -1,13 +1,33 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useDeviceStore } from '../stores/deviceStore';
+import { useCameras } from '../hooks/useCameras';
 
 export function ControlTab() {
   const { status, loading, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage } = useDeviceStore();
+  const { cameras, getSnapshotUrl } = useCameras();
+  const [wemoLoading, setWemoLoading] = useState(false);
+  const [garageImageKey, setGarageImageKey] = useState(0);
+  const [garageImageError, setGarageImageError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    const fetchWemoStatus = async () => {
+      setWemoLoading(true);
+      await fetchStatus(['wemo']);
+      if (!cancelled) {
+        setWemoLoading(false);
+      }
+    };
+
+    fetchStatus(['hue', 'rinnai', 'garage']);
+    fetchWemoStatus();
+    const fastInterval = setInterval(() => fetchStatus(['hue', 'rinnai', 'garage']), 10000);
+    const wemoInterval = setInterval(fetchWemoStatus, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(fastInterval);
+      clearInterval(wemoInterval);
+    };
   }, [fetchStatus]);
 
   if (loading && !status) {
@@ -33,6 +53,11 @@ export function ControlTab() {
     'tree': 'Tree light',
     'bedroom light': 'Bedroom light',
   };
+  const garageCamera = cameras.find(camera =>
+    camera.id.toLowerCase().includes('garage') || camera.name.toLowerCase().includes('garage')
+  );
+  const garageSnapshotUrl = garageCamera ? getSnapshotUrl(garageCamera.id) : null;
+  const garageSnapshotSrc = garageSnapshotUrl ? `${garageSnapshotUrl}?t=${garageImageKey}` : null;
 
   return (
     <div className="space-y-4">
@@ -126,9 +151,20 @@ export function ControlTab() {
           <h2 className="text-base font-semibold text-gray-800 flex items-center">
             <span className="text-xl mr-2">🔌</span>
             Switches
+            {wemoLoading && (
+              <span className="ml-auto flex items-center gap-1.5 text-xs font-medium text-teal-600">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-teal-200 border-t-teal-500"></span>
+                Loading
+              </span>
+            )}
           </h2>
         </div>
         <div className="divide-y divide-gray-50">
+          {wemoLoading && wemoDevices.length === 0 && (
+            <div className="flex items-center justify-center px-4 py-6 text-sm text-gray-500">
+              Loading switches...
+            </div>
+          )}
           {wemoDevices.map(([name, device]) => (
             <div key={name} className="flex items-center justify-between px-4 py-3">
               <div>
@@ -153,6 +189,68 @@ export function ControlTab() {
           ))}
         </div>
       </section>
+
+      {/* Garage doors */}
+      {status?.garage?.available && (
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-800 flex items-center">
+              <span className="text-xl mr-2">🚗</span>
+              Garage doors
+            </h2>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              {Array.from({ length: Math.min(status.garage.door_count, 2) }, (_, i) => (
+                <button
+                  key={i + 1}
+                  onClick={() => toggleGarage(i + 1)}
+                  className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+                >
+                  Garage door {i + 1}
+                </button>
+              ))}
+            </div>
+            {garageCamera && garageSnapshotUrl && garageSnapshotSrc && (
+              <div className="overflow-hidden rounded-lg border border-gray-100 bg-gray-100">
+                <div className="flex items-center justify-between border-b border-gray-200 bg-white px-3 py-2">
+                  <a
+                    href={garageSnapshotUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-medium text-gray-700 hover:text-blue-600"
+                  >
+                    {garageCamera.name}
+                  </a>
+                  <button
+                    onClick={() => {
+                      setGarageImageError(null);
+                      setGarageImageKey(key => key + 1);
+                    }}
+                    className="text-sm text-blue-500 hover:text-blue-600"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                {garageImageError ? (
+                  <div className="flex aspect-video items-center justify-center px-4 text-center text-sm text-red-500">
+                    {garageImageError}
+                  </div>
+                ) : (
+                  <a href={garageSnapshotUrl} target="_blank" rel="noreferrer">
+                    <img
+                      src={garageSnapshotSrc}
+                      alt={garageCamera.name}
+                      className="aspect-video w-full object-cover"
+                      onError={() => setGarageImageError('Failed to load garage snapshot')}
+                    />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Water heater */}
       <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -205,33 +303,6 @@ export function ControlTab() {
         </div>
       </section>
 
-      {/* Garage doors */}
-      {status?.garage?.available && (
-        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100">
-            <h2 className="text-base font-semibold text-gray-800 flex items-center">
-              <span className="text-xl mr-2">🚗</span>
-              Garage doors
-            </h2>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {Array.from({ length: Math.min(status.garage.door_count, 2) }, (_, i) => (
-              <div key={i + 1} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <div className="font-medium text-gray-900">Garage door {i + 1}</div>
-                  <div className="text-sm text-gray-500">Click to trigger toggle</div>
-                </div>
-                <button
-                  onClick={() => toggleGarage(i + 1)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
-                >
-                  Trigger
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

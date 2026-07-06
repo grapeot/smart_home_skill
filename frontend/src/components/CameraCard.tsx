@@ -18,11 +18,11 @@ export function CameraCard({
   onClick,
   onRefresh 
 }: CameraCardProps) {
-  const [imgKey, setImgKey] = useState(Date.now());
+  const [imgKey, setImgKey] = useState(0);
 
   const handleRefresh = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setImgKey(Date.now());
+    setImgKey(key => key + 1);
     onRefresh();
   };
 
