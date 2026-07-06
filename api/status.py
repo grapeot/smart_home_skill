@@ -9,12 +9,13 @@ from services.wemo_service import wemo_service
 from services.rinnai_service import rinnai_service
 from services.meross_service import meross_service
 from services.garage_config import garage_config
+from services.ring_service import ring_service
 from models.database import save_device_state
 
 router = APIRouter(tags=["status"])
 logger = logging.getLogger(__name__)
 
-ALL_DEVICES = {"hue", "wemo", "rinnai", "garage"}
+ALL_DEVICES = {"hue", "wemo", "rinnai", "garage", "ring"}
 
 
 def _safe_hue_status():
@@ -57,6 +58,14 @@ def _safe_garage_status():
         return {"door_count": 0, "available": False}
 
 
+def _safe_ring_status():
+    try:
+        return ring_service.get_status()
+    except Exception as e:
+        logger.warning(f"Ring status failed: {e}")
+        return {"configured": True, "locations": [], "error": "Ring status failed"}
+
+
 @router.get(
     "/api/status",
     response_model=AllStatusResponse,
@@ -64,7 +73,7 @@ def _safe_garage_status():
     summary="Get aggregate device status",
 )
 async def get_all_status(
-    devices: Optional[str] = Query(None, description="Comma-separated: hue,wemo,rinnai,garage. Omit to fetch all."),
+    devices: Optional[str] = Query(None, description="Comma-separated: hue,wemo,rinnai,garage,ring. Omit to fetch all."),
     rinnai_refresh: bool = Query(False, description="Trigger Rinnai maintenance before fetching"),
 ):
     requested = ALL_DEVICES if not devices else {s.strip().lower() for s in devices.split(",") if s.strip()}
@@ -96,5 +105,8 @@ async def get_all_status(
 
     if "garage" in requested:
         result["garage"] = _safe_garage_status()
+
+    if "ring" in requested:
+        result["ring"] = await asyncio.to_thread(_safe_ring_status)
 
     return result

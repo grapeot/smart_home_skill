@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { ControlTab } from './components/ControlTab';
 import { CamerasTab } from './components/CamerasTab';
+import { RingTab } from './components/RingTab';
 import { ScheduleTab } from './components/ScheduleTab';
 import { HistoryTab } from './components/HistoryTab';
 
-type Tab = 'control' | 'cameras' | 'schedule' | 'history';
+type Tab = 'control' | 'cameras' | 'ring' | 'schedule' | 'history';
 
 const TAB_PATH: Record<Tab, string> = {
   control: '/control',
   cameras: '/cameras',
+  ring: '/ring',
   schedule: '/schedule',
   history: '/history',
 };
@@ -20,6 +22,10 @@ function getTabFromPath(pathname: string): Tab {
 
   if (normalizedPath === '/cameras') {
     return 'cameras';
+  }
+
+  if (normalizedPath === '/ring') {
+    return 'ring';
   }
 
   if (normalizedPath === '/schedule') {
@@ -64,6 +70,7 @@ function App() {
   const tabs: { key: Tab; label: string; icon: string }[] = [
     { key: 'control', label: 'Control', icon: '🎛️' },
     { key: 'cameras', label: 'Cameras', icon: '📷' },
+    { key: 'ring', label: 'Ring', icon: '🛡️' },
     { key: 'schedule', label: 'Tasks', icon: '⏰' },
     { key: 'history', label: 'History', icon: '📊' },
   ];
@@ -83,12 +90,12 @@ function App() {
       {/* Tab Navigation */}
       <nav className="bg-white/60 backdrop-blur-sm border-b border-gray-100 sticky top-[57px] z-10">
         <div className="max-w-2xl mx-auto px-4">
-          <div className="flex">
+          <div className="grid grid-cols-3 sm:flex">
             {tabs.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => switchTab(tab.key)}
-                className={`flex-1 px-4 py-3 font-medium text-sm border-b-2 transition-all duration-200 flex items-center justify-center gap-1.5 ${
+                className={`px-2 sm:px-4 py-3 font-medium text-xs sm:text-sm border-b-2 transition-all duration-200 flex items-center justify-center gap-1 sm:gap-1.5 sm:flex-1 ${
                   activeTab === tab.key
                     ? 'border-blue-500 text-blue-600 bg-blue-50/50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50/50'
@@ -106,6 +113,7 @@ function App() {
       <main className="max-w-2xl mx-auto px-4 py-4">
         {activeTab === 'control' && <ControlTab />}
         {activeTab === 'cameras' && <CamerasTab />}
+        {activeTab === 'ring' && <RingTab />}
         {activeTab === 'schedule' && <ScheduleTab />}
         {activeTab === 'history' && <HistoryTab />}
       </main>

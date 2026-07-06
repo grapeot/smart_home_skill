@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Smart Home Skill">
+  <defs>
+    <linearGradient id="bg" x1="10" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="38" y1="27" x2="55" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#c7d2fe"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <path d="M13 31.5 32 16l19 15.5" fill="none" stroke="#f8fafc" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M19 30v18a3 3 0 0 0 3 3h17.5c-1.5-2.4-2.5-5.3-2.5-8.5V32h-10v19" fill="none" stroke="#f8fafc" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M45.5 27 56 31v9.5c0 7-4.1 12.7-10.5 15.5C39.1 53.2 35 47.5 35 40.5V31l10.5-4Z" fill="url(#shield)" stroke="#312e81" stroke-width="2.5" stroke-linejoin="round"/>
+  <circle cx="45.5" cy="39.5" r="4" fill="#22c55e" stroke="#14532d" stroke-width="2"/>
+  <path d="M44 47h3" stroke="#312e81" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

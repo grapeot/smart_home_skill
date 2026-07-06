@@ -32,9 +32,41 @@ export interface GarageStatus {
   doors?: { index: number; label: string }[];
 }
 
+export interface RingSensorStatus {
+  name?: string;
+  device_type?: string;
+  category_id?: number;
+  faulted?: boolean;
+  derived_state?: string;
+  tamper_status?: string;
+  comm_status?: string;
+  battery_level?: number;
+  battery_status?: string;
+  last_update?: string | number;
+  last_comm_time?: string | number;
+}
+
+export interface RingLocationStatus {
+  name?: string;
+  has_hubs?: boolean;
+  has_alarm_base_station?: boolean;
+  devices: RingSensorStatus[];
+}
+
+export interface RingStatusResponse {
+  schema_version?: string;
+  source?: string;
+  observed_at?: string;
+  locations: RingLocationStatus[];
+  updated_refresh_token_available?: boolean;
+  configured?: boolean;
+  error?: string;
+}
+
 export interface DeviceStatus {
-  hue: HueStatus;
-  wemo: Record<string, WemoDevice>;
-  rinnai: RinnaiStatus;
-  garage: GarageStatus;
+  hue?: HueStatus;
+  wemo?: Record<string, WemoDevice>;
+  rinnai?: RinnaiStatus;
+  garage?: GarageStatus;
+  ring?: RingStatusResponse;
 }

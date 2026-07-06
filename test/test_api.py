@@ -219,8 +219,10 @@ class TestGarageEndpoints:
 
 class TestStatusEndpoint:
 
+    @patch('api.status._safe_ring_status')
     @patch('api.status.rinnai_service.get_status', new_callable=AsyncMock)
-    def test_get_status_with_rinnai_refresh(self, mock_rinnai_status):
+    def test_get_status_with_rinnai_refresh(self, mock_rinnai_status, mock_ring_status):
+        mock_ring_status.return_value = {"configured": True, "locations": []}
         mock_rinnai_status.return_value = {
             "device_id": "test",
             "is_online": True,

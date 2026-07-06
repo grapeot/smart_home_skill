@@ -5,7 +5,9 @@ import type { DeviceStatus } from '../types'
 describe('deviceStore', () => {
   beforeEach(() => {
     globalThis.fetch = vi.fn()
-    useDeviceStore.setState({ status: null, error: null })
+    globalThis.localStorage.clear()
+    useDeviceStore.setState({ status: null, error: null, loading: false })
+    vi.useRealTimers()
   })
 
   it('has initial state', () => {
@@ -35,6 +37,55 @@ describe('deviceStore', () => {
     const status = useDeviceStore.getState().status
     expect(status?.hue?.name).toBe('Baby room')
     expect(status?.wemo?.coffee?.is_on).toBe(true)
+  })
+
+  it('fetchStatus can request Ring only', async () => {
+    const mockFetch = vi.mocked(globalThis.fetch)
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ ring: { configured: true, locations: [{ name: 'Home', devices: [] }] } }),
+    } as Response)
+
+    await useDeviceStore.getState().fetchStatus(['ring'])
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/status?devices=ring')
+    expect(useDeviceStore.getState().status?.ring?.locations[0]?.name).toBe('Home')
+  })
+
+  it('fetchStatus uses cached Ring status inside TTL', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-06T10:00:00Z'))
+    globalThis.localStorage.setItem(
+      'smart_home:ring_status:v1',
+      JSON.stringify({
+        savedAt: Date.now(),
+        ring: { configured: true, locations: [{ name: 'Cached home', devices: [] }] },
+      }),
+    )
+
+    await useDeviceStore.getState().fetchStatus(['ring'])
+
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+    expect(useDeviceStore.getState().status?.ring?.locations[0]?.name).toBe('Cached home')
+  })
+
+  it('refreshRing bypasses cache and updates cached status', async () => {
+    const mockFetch = vi.mocked(globalThis.fetch)
+    globalThis.localStorage.setItem(
+      'smart_home:ring_status:v1',
+      JSON.stringify({ savedAt: Date.now(), ring: { configured: true, locations: [{ name: 'Cached home', devices: [] }] } }),
+    )
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ ring: { configured: true, locations: [{ name: 'Fresh home', devices: [] }] } }),
+    } as Response)
+
+    await useDeviceStore.getState().refreshRing()
+
+    expect(mockFetch).toHaveBeenCalledWith('/api/status?devices=ring')
+    expect(useDeviceStore.getState().status?.ring?.locations[0]?.name).toBe('Fresh home')
+    const cached = JSON.parse(globalThis.localStorage.getItem('smart_home:ring_status:v1') || '{}')
+    expect(cached.ring.locations[0].name).toBe('Fresh home')
   })
 
   it('setHueBrightness calls API and fetches updated status', async () => {
