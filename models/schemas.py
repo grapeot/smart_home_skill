@@ -54,6 +54,7 @@ class RinnaiStatus(FlexibleModel):
 class GarageStatus(FlexibleModel):
     door_count: int
     available: bool
+    doors: Optional[List[Dict[str, Any]]] = None
 
 
 class NotificationResult(FlexibleModel):

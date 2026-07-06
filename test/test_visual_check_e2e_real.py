@@ -1,9 +1,7 @@
 import os
 
 import pytest
-from fastapi.testclient import TestClient
-
-from main import app
+import requests
 
 
 pytestmark = [
@@ -16,10 +14,10 @@ pytestmark = [
 
 
 def test_real_garage_visual_check_returns_json_without_triggering_garage():
+    base_url = os.getenv('SMART_HOME_REAL_BASE_URL', 'http://localhost:7999').rstrip('/')
     check_id = os.getenv('SMART_HOME_REAL_VISUAL_CHECK_ID', 'garage')
-    client = TestClient(app)
 
-    response = client.post(f'/api/visual-checks/{check_id}/run')
+    response = requests.post(f'{base_url}/api/visual-checks/{check_id}/run', timeout=240)
 
     assert response.status_code == 200
     data = response.json()

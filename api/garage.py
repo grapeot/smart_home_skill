@@ -1,15 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 from models.schemas import ApiError, GarageStatus, GarageToggleResponse
 from services.auth import require_control_auth
+from services.garage_config import garage_config
 from services.meross_service import meross_service
 
 router = APIRouter(prefix="/api/garage", tags=["garage"])
 
 @router.get("/status", response_model=GarageStatus, summary="Get Meross garage controller status")
 async def get_garage_status():
+    door_count = meross_service.get_door_count()
     return {
-        "door_count": meross_service.get_door_count(),
-        "available": meross_service._connected
+        "door_count": door_count,
+        "available": meross_service._connected,
+        "doors": garage_config.get_doors(door_count),
     }
 
 async def _toggle_garage(door_index: int):

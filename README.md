@@ -36,6 +36,7 @@ Local deployments add private state:
 | `.env` | Credentials, ports, Resend notification config | ignored |
 | `config/wemo_config.yaml` | Real Wemo device names and local IPs | ignored |
 | `config/cameras.yaml` | Real camera names and local IPs | ignored |
+| `config/garage_config.yaml` | Local garage door display labels | ignored |
 | Workspace private skill overlay | Natural-language aliases, default devices, safety notes, household policy | outside this public repo |
 
 The private overlay should not duplicate the full API. It should point agents to live OpenAPI and add only the local semantics OpenAPI cannot know.

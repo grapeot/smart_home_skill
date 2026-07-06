@@ -26,7 +26,7 @@ describe('deviceStore', () => {
       hue: { name: 'Baby room', is_on: true, brightness: 128 },
       wemo: {},
       rinnai: { is_online: true },
-      garage: { door_count: 2, available: true },
+      garage: { door_count: 2, available: true, doors: [{ index: 1, label: 'Garage Door Black' }] },
     }
     useDeviceStore.setState({ status: initialStatus })
 

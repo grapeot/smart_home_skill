@@ -29,6 +29,7 @@ export interface RinnaiStatus {
 export interface GarageStatus {
   door_count: number;
   available: boolean;
+  doors?: { index: number; label: string }[];
 }
 
 export interface DeviceStatus {
