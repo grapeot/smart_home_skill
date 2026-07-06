@@ -57,3 +57,22 @@ jobs:
           npm ci
           npm run build
           npm test
+
+  frontend-ux:
+    name: Frontend UX (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Playwright and run UX tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:ux
