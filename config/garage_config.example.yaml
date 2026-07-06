@@ -1,0 +1,9 @@
+# Example garage door display configuration.
+# Copy to config/garage_config.yaml and edit locally.
+# Keep house-specific labels out of git.
+
+doors:
+  - index: 1
+    label: "Garage door 1"
+  - index: 2
+    label: "Garage door 2"

@@ -58,6 +58,12 @@ export function ControlTab() {
   );
   const garageSnapshotUrl = garageCamera ? getSnapshotUrl(garageCamera.id) : null;
   const garageSnapshotSrc = garageSnapshotUrl ? `${garageSnapshotUrl}?t=${garageImageKey}` : null;
+  const garageDoors = status?.garage
+    ? Array.from({ length: Math.min(status.garage.door_count, 2) }, (_, i) => {
+        const index = i + 1;
+        return status.garage.doors?.find(door => door.index === index) ?? { index, label: `Garage door ${index}` };
+      })
+    : [];
 
   return (
     <div className="space-y-4">
@@ -201,13 +207,13 @@ export function ControlTab() {
           </div>
           <div className="p-4 space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              {Array.from({ length: Math.min(status.garage.door_count, 2) }, (_, i) => (
+              {garageDoors.map(door => (
                 <button
-                  key={i + 1}
-                  onClick={() => toggleGarage(i + 1)}
+                  key={door.index}
+                  onClick={() => toggleGarage(door.index)}
                   className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
                 >
-                  Garage door {i + 1}
+                  {door.label}
                 </button>
               ))}
             </div>

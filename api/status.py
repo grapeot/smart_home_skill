@@ -8,6 +8,7 @@ from services.hue_service import hue_service
 from services.wemo_service import wemo_service
 from services.rinnai_service import rinnai_service
 from services.meross_service import meross_service
+from services.garage_config import garage_config
 from models.database import save_device_state
 
 router = APIRouter(tags=["status"])
@@ -50,7 +51,7 @@ def _safe_garage_status():
     try:
         door_count = meross_service.get_door_count()
         available = meross_service._connected
-        return {"door_count": door_count, "available": available}
+        return {"door_count": door_count, "available": available, "doors": garage_config.get_doors(door_count)}
     except Exception as e:
         logger.warning(f"Garage status failed: {e}")
         return {"door_count": 0, "available": False}

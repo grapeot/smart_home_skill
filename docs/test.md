@@ -86,6 +86,8 @@ source .venv/bin/activate
 SMART_HOME_RUN_REAL_E2E=1 SMART_HOME_REAL_VISUAL_CHECK_ID=garage python -m pytest test/test_visual_check_e2e_real.py -v
 ```
 
+This test targets the running service at `SMART_HOME_REAL_BASE_URL`, defaulting to `http://localhost:7999`, so start or restart the local service before running it.
+
 ## CI
 
 GitHub Actions runs backend pytest, frontend Vitest/build, and Playwright UX tests on PRs. Real-device and real-data E2E tests stay out of CI by default and require explicit local opt-in.

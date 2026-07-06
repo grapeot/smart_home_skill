@@ -190,6 +190,22 @@ class TestRinnaiEndpoints:
 class TestGarageEndpoints:
 
     @patch('api.garage.meross_service.get_door_count')
+    @patch('api.garage.garage_config.get_doors')
+    def test_get_garage_status_includes_display_labels(self, mock_get_doors, mock_door_count):
+        mock_door_count.return_value = 2
+        mock_get_doors.return_value = [
+            {"index": 1, "label": "Garage door 1"},
+            {"index": 2, "label": "Garage door 2"},
+        ]
+
+        response = client.get("/api/garage/status")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["door_count"] == 2
+        assert data["doors"][0]["label"] == "Garage door 1"
+
+    @patch('api.garage.meross_service.get_door_count')
     @patch('api.garage.meross_service.toggle_door', new_callable=AsyncMock)
     def test_garage_toggle_post(self, mock_toggle, mock_door_count):
         mock_door_count.return_value = 2

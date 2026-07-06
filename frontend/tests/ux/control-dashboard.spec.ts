@@ -24,7 +24,14 @@ test.beforeEach(async ({ page }) => {
       json: {
         hue: { name: 'Baby room', is_on: true, brightness: 128 },
         rinnai: { is_online: true, set_temperature: 120, outlet_temp: 118, inlet_temp: 65, recirculation_enabled: false },
-        garage: { door_count: 2, available: true },
+        garage: {
+          door_count: 2,
+          available: true,
+          doors: [
+            { index: 1, label: 'Garage Door Black' },
+            { index: 2, label: 'Garage Door White' },
+          ],
+        },
       },
     });
   });
@@ -50,8 +57,8 @@ test('control dashboard renders garage camera without blocking on Wemo', async (
   const waterHeaterBox = await page.getByRole('heading', { name: /water heater/i }).boundingBox();
   expect(garageBox?.y).toBeLessThan(waterHeaterBox?.y ?? Number.POSITIVE_INFINITY);
 
-  await expect(page.getByRole('button', { name: 'Garage door 1' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Garage door 2' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Garage Door Black' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Garage Door White' })).toBeVisible();
   await expect(page.getByRole('img', { name: 'Garage' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Garage' }).first()).toHaveAttribute('href', '/api/cameras/snapshot/garage');
 
