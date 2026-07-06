@@ -9,12 +9,12 @@ interface CameraModalProps {
 export function CameraModal({ cameraName, snapshotUrl, onClose }: CameraModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [key, setKey] = useState(Date.now());
+  const [key, setKey] = useState(0);
 
   const handleRefresh = () => {
     setLoading(true);
     setError(null);
-    setKey(Date.now());
+    setKey(key => key + 1);
   };
 
   useEffect(() => {
