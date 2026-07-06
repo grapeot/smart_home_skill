@@ -2,11 +2,12 @@
 
 ## Goals
 
-The test suite protects three contracts:
+The test suite protects four contracts:
 
 1. Device adapters return stable results under mocked conditions.
 2. FastAPI routes expose callable, OpenAPI-documented endpoints for agents.
 3. The frontend store and production build keep working against the backend API.
+4. The dashboard UX preserves safety-critical layout and loading behavior without relying on real devices.
 
 ## Commands
 
@@ -23,6 +24,14 @@ Frontend tests and build:
 cd frontend
 npm test -- --run
 npm run build
+```
+
+Frontend UX tests:
+
+```bash
+cd frontend
+npx playwright install chromium
+npm run test:ux
 ```
 
 Startup script syntax:
@@ -50,7 +59,10 @@ The final command should print nothing for tracked public files.
 | Garage notifications | `test/test_notification_service.py` |
 | Database/history | `test/test_database.py` |
 | Dynamic scheduler | `test/test_dynamic_scheduler.py`, `test/test_action_executor.py` |
+| Aggregate status API | `test/test_status_api.py` |
+| Visual check service/API | `test/test_visual_check_service.py`, `test/test_visual_check_api.py`, `test/test_visual_check_integration.py` |
 | Frontend store | `frontend/src/stores/deviceStore.test.ts` |
+| Frontend UX | `frontend/tests/ux/control-dashboard.spec.ts` |
 
 ## OpenAPI Assertions
 
@@ -67,6 +79,13 @@ These tests make OpenAPI-first agent usage safer because they catch accidental s
 
 `test/test_integration_real.py` is intentionally excluded from default test runs. It may touch real devices and should only run with explicit local intent.
 
+`test/test_visual_check_e2e_real.py` is a safer real-data E2E path for visual checks. It does not trigger garage actions; it calls the configured visual-check endpoint and asserts that the response is valid JSON with the expected result envelope. It is skipped unless explicitly enabled:
+
+```bash
+source .venv/bin/activate
+SMART_HOME_RUN_REAL_E2E=1 SMART_HOME_REAL_VISUAL_CHECK_ID=garage python -m pytest test/test_visual_check_e2e_real.py -v
+```
+
 ## CI
 
-GitHub Actions currently runs backend pytest and frontend Vitest on PRs. Local verification should also run `npm run build` because build errors can pass unit tests.
+GitHub Actions runs backend pytest, frontend Vitest/build, and Playwright UX tests on PRs. Real-device and real-data E2E tests stay out of CI by default and require explicit local opt-in.
