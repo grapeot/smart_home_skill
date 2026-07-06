@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useDeviceStore } from '../stores/deviceStore';
 import type { RingSensorStatus } from '../types';
 
@@ -24,6 +24,7 @@ function stateClass(device: RingSensorStatus): string {
 
 export function RingTab() {
   const { status, fetchStatus, refreshRing } = useDeviceStore();
+  const [ringRefreshing, setRingRefreshing] = useState(false);
   const ring = status?.ring;
 
   useEffect(() => {
@@ -37,6 +38,15 @@ export function RingTab() {
     (location.devices ?? []).map(device => ({ ...device, locationName: location.name ?? 'Ring location' }))
   );
 
+  const handleRefresh = async () => {
+    setRingRefreshing(true);
+    try {
+      await refreshRing();
+    } finally {
+      setRingRefreshing(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -45,10 +55,14 @@ export function RingTab() {
             <span className="text-xl mr-2">🛡️</span>
             Ring sensors
             <button
-              onClick={refreshRing}
-              className="ml-auto rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2"
+              onClick={handleRefresh}
+              disabled={ringRefreshing}
+              className="ml-auto flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-75"
             >
-              Refresh
+              {ringRefreshing && (
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-purple-200 border-t-purple-500"></span>
+              )}
+              {ringRefreshing ? 'Loading' : 'Refresh'}
             </button>
           </h2>
         </div>

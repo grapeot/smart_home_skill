@@ -15,11 +15,13 @@ function sensorState(device: RingSensorStatus): string {
 }
 
 export function ControlTab() {
-  const { status, loading, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage } = useDeviceStore();
+  const { status, loading, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage, refreshRing } = useDeviceStore();
   const { cameras, getSnapshotUrl } = useCameras();
   const [wemoLoading, setWemoLoading] = useState(false);
   const [garageImageKey, setGarageImageKey] = useState(0);
+  const [garageImageLoading, setGarageImageLoading] = useState(false);
   const [garageImageError, setGarageImageError] = useState<string | null>(null);
+  const [contactRefreshing, setContactRefreshing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +85,21 @@ export function ControlTab() {
   const contactSensors = (status?.ring?.locations ?? [])
     .flatMap(location => location.devices ?? [])
     .filter(isContactSensor);
+
+  const handleGarageRefresh = () => {
+    setGarageImageError(null);
+    setGarageImageLoading(true);
+    setGarageImageKey(key => key + 1);
+  };
+
+  const handleContactRefresh = async () => {
+    setContactRefreshing(true);
+    try {
+      await refreshRing();
+    } finally {
+      setContactRefreshing(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -248,13 +265,14 @@ export function ControlTab() {
                     {garageCamera.name}
                   </a>
                   <button
-                    onClick={() => {
-                      setGarageImageError(null);
-                      setGarageImageKey(key => key + 1);
-                    }}
-                    className="text-sm text-blue-500 hover:text-blue-600"
+                    onClick={handleGarageRefresh}
+                    disabled={garageImageLoading}
+                    className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 disabled:cursor-wait disabled:opacity-75"
                   >
-                    Refresh
+                    {garageImageLoading && (
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-200 border-t-blue-500"></span>
+                    )}
+                    {garageImageLoading ? 'Loading' : 'Refresh'}
                   </button>
                 </div>
                 {garageImageError ? (
@@ -267,7 +285,11 @@ export function ControlTab() {
                       src={garageSnapshotSrc}
                       alt={garageCamera.name}
                       className="aspect-video w-full object-cover"
-                      onError={() => setGarageImageError('Failed to load garage snapshot')}
+                      onLoad={() => setGarageImageLoading(false)}
+                      onError={() => {
+                        setGarageImageLoading(false);
+                        setGarageImageError('Failed to load garage snapshot');
+                      }}
                     />
                   </a>
                 )}
@@ -283,6 +305,16 @@ export function ControlTab() {
           <h2 className="text-base font-semibold text-gray-800 flex items-center">
             <span className="text-xl mr-2">🛡️</span>
             Contact sensors
+            <button
+              onClick={handleContactRefresh}
+              disabled={contactRefreshing}
+              className="ml-auto flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-75"
+            >
+              {contactRefreshing && (
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-purple-200 border-t-purple-500"></span>
+              )}
+              {contactRefreshing ? 'Loading' : 'Refresh'}
+            </button>
           </h2>
         </div>
         <div className="divide-y divide-gray-50">

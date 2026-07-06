@@ -7,6 +7,7 @@ const ONE_PIXEL_PNG = Buffer.from(
 
 test.beforeEach(async ({ page }) => {
   let ringRequestCount = 0;
+  let garageSnapshotCount = 0;
 
   await page.route('**/api/status**', async route => {
     const url = new URL(route.request().url());
@@ -77,10 +78,16 @@ test.beforeEach(async ({ page }) => {
     json: { cameras: [{ id: 'garage', name: 'Garage' }] },
   }));
 
-  await page.route('**/api/cameras/snapshot/garage**', route => route.fulfill({
-    contentType: 'image/png',
-    body: ONE_PIXEL_PNG,
-  }));
+  await page.route('**/api/cameras/snapshot/garage**', async route => {
+    garageSnapshotCount += 1;
+    if (garageSnapshotCount > 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    await route.fulfill({
+      contentType: 'image/png',
+      body: ONE_PIXEL_PNG,
+    });
+  });
 });
 
 test('control dashboard renders garage camera without blocking on Wemo', async ({ page }) => {
@@ -127,6 +134,85 @@ test('ring tab reuses cached sensors and manual refresh updates them', async ({ 
 
   await expect(page.getByText('Fresh Back Door')).toBeVisible();
   await expect(page.getByText('Fresh Hall Motion')).toBeVisible();
+});
+
+test('ring refresh shows loading animation while updating', async ({ page }) => {
+  await page.goto('/ring');
+  await expect(page.getByText('Back Door')).toBeVisible();
+
+  await page.unroute('**/api/status**');
+  await page.route('**/api/status**', async route => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        ring: {
+          configured: true,
+          locations: [
+            {
+              name: 'Home',
+              devices: [
+                { name: 'Fresh Back Door', device_type: 'contact_sensor', faulted: false, battery_level: 91 },
+                { name: 'Fresh Hall Motion', device_type: 'motion_sensor', faulted: true, battery_level: 88 },
+              ],
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  await page.getByRole('button', { name: 'Refresh' }).click();
+
+  await expect(page.getByRole('button', { name: 'Loading' })).toBeVisible();
+  await expect(page.locator('button:has-text("Loading") .animate-spin')).toBeVisible();
+  await expect(page.getByText('Fresh Back Door')).toBeVisible();
+});
+
+test('control contact sensors refresh shows loading and updates sensors', async ({ page }) => {
+  await page.goto('/control');
+  await expect(page.getByText('Back Door')).toBeVisible();
+
+  await page.unroute('**/api/status**');
+  await page.route('**/api/status**', async route => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        ring: {
+          configured: true,
+          locations: [
+            {
+              name: 'Home',
+              devices: [
+                { name: 'Fresh Back Door', device_type: 'contact_sensor', faulted: false, battery_level: 91 },
+                { name: 'Fresh Hall Motion', device_type: 'motion_sensor', faulted: true, battery_level: 88 },
+              ],
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  const contactSection = page.getByRole('heading', { name: /contact sensors/i }).locator('..').locator('..');
+  await contactSection.getByRole('button', { name: 'Refresh' }).click();
+
+  await expect(contactSection.getByRole('button', { name: 'Loading' })).toBeVisible();
+  await expect(contactSection.locator('button:has-text("Loading") .animate-spin')).toBeVisible();
+  await expect(page.getByText('Fresh Back Door')).toBeVisible();
+});
+
+test('garage snapshot refresh shows loading animation', async ({ page }) => {
+  await page.goto('/control');
+  await expect(page.getByRole('img', { name: 'Garage' })).toBeVisible();
+
+  const garageSection = page.getByRole('heading', { name: /garage doors/i }).locator('..').locator('..');
+  await garageSection.getByRole('button', { name: 'Refresh' }).click();
+
+  await expect(garageSection.getByRole('button', { name: 'Loading' })).toBeVisible();
+  await expect(garageSection.locator('button:has-text("Loading") .animate-spin')).toBeVisible();
+  await expect(garageSection.getByRole('button', { name: 'Refresh' })).toBeVisible();
 });
 
 test('mobile tab navigation wraps without horizontal overflow', async ({ page }) => {
