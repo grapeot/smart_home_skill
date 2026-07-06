@@ -1,0 +1,13 @@
+{
+  "name": "smart-home-ring-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test_node/*.test.mjs",
+    "ring:auth": "ring-auth-cli",
+    "ring:status": "node scripts/ring_client_status.mjs"
+  },
+  "dependencies": {
+    "ring-client-api": "npm:@tsightler/ring-client-api@^14.3.1-beta.1"
+  }
+}

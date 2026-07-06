@@ -38,6 +38,7 @@ Unlike many AI skills in this workspace, this project is intentionally not CLI-o
 | Garage doors | Meross local HTTP `/config` | Trigger/toggle, no false promise of authoritative door position |
 | Cameras | Amcrest local snapshot proxy | List cameras and fetch snapshots without storing images |
 | Visual checks | Camera snapshot + local LM Studio vision model | Convert visual household state into schema-validated JSON with artifacts and assertions |
+| Ring Alarm status spike | `ring-client-api` read-only pull | Fetch Ring Alarm sensor telemetry without MQTT or physical actions |
 
 ## Visual Check Requirements
 
@@ -59,6 +60,13 @@ Some household states are easier to observe with a camera than with a brittle ph
 2. This project should not become a generic `/execute` RPC where all intent is hidden in a payload.
 3. Public docs should not describe one real home's topology or routines.
 4. Private overlays should not copy the full OpenAPI schema.
+5. The Ring spike is not a Ring control surface. It must not arm, disarm, sound sirens, bypass sensors, or mutate Ring devices.
+
+## Privacy Requirements for Ring Status
+
+Ring status contains household presence data. Public files may include only synthetic sensor names, example config keys, and shape-level JSON. Real Ring refresh tokens, location IDs, device IDs, room IDs, sensor names, and raw output belong in ignored local files or operator logs.
+
+The public example config is `config/ring_client_status.example.json`. The private runtime config is `config/ring_client_status.json`, which is ignored by git. Token writeback is allowed only to the ignored private config file or to an explicitly managed local secret store.
 
 ## Success Criteria
 
@@ -66,4 +74,5 @@ Some household states are easier to observe with a camera than with a brittle ph
 2. A local agent can combine live OpenAPI and private overlay notes to select the correct endpoint.
 3. Public examples use RFC 5737 example IPs and fake credentials only.
 4. Visual check examples use synthetic or mock images only; real camera fixtures remain ignored.
-5. Backend tests, frontend tests, frontend build, and privacy scans pass before release.
+5. Ring examples and tests use synthetic device names and IDs only.
+6. Backend tests, frontend tests, frontend build, Node tests, and privacy scans pass before release.

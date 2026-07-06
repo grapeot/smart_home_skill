@@ -18,6 +18,12 @@ source .venv/bin/activate
 python -m pytest test/ -q --ignore=test/test_integration_real.py
 ```
 
+Ring status Node tests:
+
+```bash
+npm test
+```
+
 Frontend tests and build:
 
 ```bash
@@ -43,7 +49,7 @@ bash -n start_server.sh
 Privacy scan for public files:
 
 ```bash
-git grep -n -E '<real-lan-subnet>|<real-email>|<secret-reference>|<device-id>' -- . ':!*.lock' || true
+git grep -n -E '<real-lan-subnet>|<real-email>|<secret-reference>|<device-id>|refreshToken.*[A-Za-z0-9+/=_-]{20,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' -- . ':!*.lock' || true
 ```
 
 The final command should print nothing for tracked public files.
@@ -61,6 +67,7 @@ The final command should print nothing for tracked public files.
 | Dynamic scheduler | `test/test_dynamic_scheduler.py`, `test/test_action_executor.py` |
 | Aggregate status API | `test/test_status_api.py` |
 | Visual check service/API | `test/test_visual_check_service.py`, `test/test_visual_check_api.py`, `test/test_visual_check_integration.py` |
+| Ring status CLI spike | `test_node/ring_client_status.test.mjs` |
 | Frontend store | `frontend/src/stores/deviceStore.test.ts` |
 | Frontend UX | `frontend/tests/ux/control-dashboard.spec.ts` |
 
@@ -91,3 +98,5 @@ This test targets the running service at `SMART_HOME_REAL_BASE_URL`, defaulting 
 ## CI
 
 GitHub Actions runs backend pytest, frontend Vitest/build, and Playwright UX tests on PRs. Real-device and real-data E2E tests stay out of CI by default and require explicit local opt-in.
+
+The Ring status CLI live call is also excluded from CI. CI runs only synthetic Node tests and must not require a Ring account or refresh token.

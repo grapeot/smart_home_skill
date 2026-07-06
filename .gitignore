@@ -41,6 +41,9 @@ env/
 *.log
 logs/
 
+# Node spike dependencies
+node_modules/
+
 # Local development
 .env
 .env.local
@@ -54,3 +57,4 @@ config/cameras.yaml
 config/garage_config.yaml
 config/vision_checks.yaml
 config/visual_check_private/
+config/ring_client_status.json
