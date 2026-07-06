@@ -20,6 +20,8 @@ Dedicated FastAPI endpoint
 Device adapter: Hue / Wemo / Rinnai / Meross / Camera
 ```
 
+Read-only telemetry spikes may also expose CLI surfaces before becoming FastAPI endpoints. The Ring status spike follows that path: it validates that Ring Alarm sensor state can be read safely before adding backend/API/dashboard integration.
+
 ## Why This Skill Is an Always-On Web Service
 
 Most public AI skills in this workspace use a CLI contract. That is the right shape for research, file processing, email workflows, and other tasks where an agent is already in the loop. Smart home control needs a different runtime shape.
@@ -81,6 +83,7 @@ Rule: **OpenAPI defines what can be called. Private overlay defines what should 
 | Device adapters | `services/*_service.py` | Integration-specific control and status logic |
 | Scheduling | `services/dynamic_scheduler.py`, `services/scheduler.py` | Delayed actions and recurring state collection |
 | Visual checks | `services/visual_check_service.py`, `api/visual_check.py`, `scripts/visual_check.py` | Camera snapshot inspection through a local vision model with schema validation |
+| Ring status spike | `scripts/ring_client_status.mjs`, `config/ring_client_status.example.json` | Read-only Ring Alarm sensor status pull through `ring-client-api` |
 
 ## Device Integration Notes
 
@@ -93,6 +96,10 @@ Rinnai uses cloud credentials and may fail independently of local devices. Aggre
 Meross garage control uses cloud login only to discover the device and signing key. The actual trigger uses local HTTP `/config` with Meross signatures. Door state is not treated as authoritative when the physical sensor is absent or unreliable.
 
 Camera snapshots are proxied on demand. Images are not stored by the backend.
+
+Ring Alarm sensor status is currently a read-only spike. The data path is Ring sensor → Ring Alarm Base Station → Ring cloud / Ring app API → `ring-client-api` → local JSON output. The script does not read the Base Station over LAN, does not join the Z-Wave network, and does not perform Ring control actions. `ring-mqtt` uses the same underlying API family, so MQTT is treated as an optional bridge/runtime layer rather than a more authoritative data source.
+
+The Ring spike rotates refresh tokens back into the ignored private config file by default when the token came from that file. Public examples must not contain real refresh tokens, location IDs, device IDs, room IDs, sensor names, or raw Ring output.
 
 Visual checks consume camera snapshots or configured HTTP snapshot URLs, call an OpenAI-compatible local LM Studio endpoint, validate the model response against a configured JSON Schema, and save per-run artifacts under an ignored data directory. The HTTP endpoint and CLI are thin wrappers over `VisualCheckService`; they do not duplicate prompt, validation, retry, or artifact logic.
 

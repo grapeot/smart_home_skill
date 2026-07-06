@@ -1,0 +1,6 @@
+{
+  "refreshToken": "REPLACE_ME",
+  "locationIds": [],
+  "includeRaw": false,
+  "timeoutMs": 30000
+}
