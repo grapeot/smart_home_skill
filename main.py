@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import socket
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
@@ -53,15 +54,33 @@ def _safe_frontend_file(path: str) -> Optional[Path]:
     return None
 
 
+def _resolve_bind_addresses(host: str, port: int, attempts: int, delay_seconds: float):
+    attempts = max(1, attempts)
+    for attempt in range(1, attempts + 1):
+        try:
+            return socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        except socket.gaierror as exc:
+            if attempt == attempts:
+                logger.warning("Skipping unresolved bind host %s: %s", host, exc)
+                return []
+            logger.warning(
+                "Bind host %s unresolved on attempt %s/%s: %s; retrying in %.1fs",
+                host,
+                attempt,
+                attempts,
+                exc,
+                delay_seconds,
+            )
+            time.sleep(delay_seconds)
+
+
 def _bind_sockets(hosts: List[str], port: int) -> List[socket.socket]:
     sockets: List[socket.socket] = []
     seen: Set[Tuple[int, str, int]] = set()
+    resolve_attempts = int(os.getenv("SMART_HOME_BIND_RESOLVE_ATTEMPTS", "5"))
+    resolve_delay = float(os.getenv("SMART_HOME_BIND_RESOLVE_DELAY_SECONDS", "1"))
     for host in hosts:
-        try:
-            addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-        except socket.gaierror as exc:
-            logger.warning("Skipping unresolved bind host %s: %s", host, exc)
-            continue
+        addresses = _resolve_bind_addresses(host, port, resolve_attempts, resolve_delay)
 
         for family, socktype, proto, _canonname, sockaddr in addresses:
             key = (family, sockaddr[0], sockaddr[1])
