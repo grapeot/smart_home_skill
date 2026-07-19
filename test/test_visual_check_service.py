@@ -81,3 +81,24 @@ async def test_visual_check_retries_invalid_json(tmp_path):
 
     assert result["status"] == "ok"
     assert call.call_count == 2
+
+
+def test_call_lmstudio_passes_chat_template_kwargs():
+    service = VisualCheckService()
+    response = Mock()
+    response.json.return_value = {"choices": [{"message": {"content": "{}"}}]}
+    snapshot = Mock(content=b"image", mime_type="image/jpeg")
+
+    with patch("services.visual_check_service.requests.post", return_value=response) as post:
+        service._call_lmstudio(
+            {
+                "api_base": "http://127.0.0.1:1234/v1",
+                "model": "test-model",
+                "chat_template_kwargs": {"enable_thinking": False},
+            },
+            snapshot,
+            "inspect",
+            {"type": "object"},
+        )
+
+    assert post.call_args.kwargs["json"]["chat_template_kwargs"] == {"enable_thinking": False}

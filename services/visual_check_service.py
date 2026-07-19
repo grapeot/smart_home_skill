@@ -200,6 +200,8 @@ class VisualCheckService:
                 "json_schema": {"name": "visual_check", "schema": schema},
             },
         }
+        if lmstudio_config.get("chat_template_kwargs") is not None:
+            payload["chat_template_kwargs"] = lmstudio_config["chat_template_kwargs"]
         resp = requests.post(f"{api_base.rstrip('/')}/chat/completions", json=payload, timeout=timeout)
         resp.raise_for_status()
         return resp.json()
