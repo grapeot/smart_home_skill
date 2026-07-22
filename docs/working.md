@@ -6,6 +6,11 @@ The project is being reframed from a Hue-oriented dashboard into `smart_home_ski
 
 ## Changelog
 
+### 2026-07-18
+
+- Added configurable LM Studio chat-template arguments so visual checks can disable Qwen reasoning and preserve the token budget for schema-constrained JSON.
+- Updated the private nightly check to return a non-zero exit status when a visual check fails or reports an open door or gate.
+
 ### 2026-06-25
 
 - Switched garage control to POST-only semantics.

@@ -3,9 +3,10 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+import requests
 import yaml
 
-from services.visual_check_service import VisualCheckService
+from services.visual_check_service import VisualCheckError, VisualCheckService
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,3 +82,60 @@ async def test_visual_check_retries_invalid_json(tmp_path):
 
     assert result["status"] == "ok"
     assert call.call_count == 2
+
+
+def test_ensure_lmstudio_loads_configured_model_when_server_is_empty():
+    service = VisualCheckService()
+    models_response = Mock()
+    models_response.json.return_value = {
+        "models": [{"key": "qwen/qwen3.5-35b-a3b", "loaded_instances": []}]
+    }
+    load_response = Mock()
+
+    with patch.object(service, "_lmstudio_available", return_value=True), patch(
+        "services.visual_check_service.requests.get", return_value=models_response
+    ), patch("services.visual_check_service.requests.post", return_value=load_response) as post:
+        service._ensure_lmstudio(
+            {
+                "api_base": "http://127.0.0.1:1234/v1",
+                "model": "qwen/qwen3.5-35b-a3b",
+                "context_length": 8192,
+            }
+        )
+
+    post.assert_called_once_with(
+        "http://127.0.0.1:1234/api/v1/models/load",
+        json={"model": "qwen/qwen3.5-35b-a3b", "context_length": 8192},
+        timeout=180,
+    )
+
+
+def test_lmstudio_http_error_includes_response_body():
+    service = VisualCheckService()
+    response = Mock()
+    response.text = '{"error":{"message":"Model is not loaded"}}'
+    response.raise_for_status.side_effect = requests.HTTPError("400 Client Error: Bad Request")
+
+    with pytest.raises(VisualCheckError, match="Model is not loaded"):
+        service._raise_for_status(response)
+
+
+def test_call_lmstudio_passes_chat_template_kwargs():
+    service = VisualCheckService()
+    response = Mock()
+    response.json.return_value = {"choices": [{"message": {"content": "{}"}}]}
+    snapshot = Mock(content=b"image", mime_type="image/jpeg")
+
+    with patch("services.visual_check_service.requests.post", return_value=response) as post:
+        service._call_lmstudio(
+            {
+                "api_base": "http://127.0.0.1:1234/v1",
+                "model": "test-model",
+                "chat_template_kwargs": {"enable_thinking": False},
+            },
+            snapshot,
+            "inspect",
+            {"type": "object"},
+        )
+
+    assert post.call_args.kwargs["json"]["chat_template_kwargs"] == {"enable_thinking": False}

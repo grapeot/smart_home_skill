@@ -200,27 +200,60 @@ class VisualCheckService:
                 "json_schema": {"name": "visual_check", "schema": schema},
             },
         }
+        if lmstudio_config.get("chat_template_kwargs") is not None:
+            payload["chat_template_kwargs"] = lmstudio_config["chat_template_kwargs"]
         resp = requests.post(f"{api_base.rstrip('/')}/chat/completions", json=payload, timeout=timeout)
-        resp.raise_for_status()
+        self._raise_for_status(resp)
         return resp.json()
 
     def _ensure_lmstudio(self, lmstudio_config: dict[str, Any]) -> None:
         api_base = lmstudio_config.get("api_base", "http://127.0.0.1:1234/v1")
-        if self._lmstudio_available(api_base):
+        if not self._lmstudio_available(api_base):
+            launch = lmstudio_config.get("launch", {}) or {}
+            if not launch.get("enabled"):
+                raise VisualCheckError(f"LM Studio is not available at {api_base}")
+            command = launch.get("command")
+            if not command:
+                raise VisualCheckError("LM Studio launch is enabled but no command is configured")
+            subprocess.Popen(command)
+            deadline = time.time() + float(launch.get("wait_seconds", 90))
+            while time.time() < deadline:
+                if self._lmstudio_available(api_base):
+                    break
+                time.sleep(3)
+            else:
+                raise VisualCheckError(f"LM Studio did not become available at {api_base}")
+
+        self._ensure_lmstudio_model(lmstudio_config)
+
+    def _ensure_lmstudio_model(self, lmstudio_config: dict[str, Any]) -> None:
+        api_base = lmstudio_config.get("api_base", "http://127.0.0.1:1234/v1")
+        native_base = api_base.rstrip("/")
+        if native_base.endswith("/v1"):
+            native_base = native_base[:-3]
+        model = lmstudio_config.get("model", "qwen/qwen3.5-35b-a3b")
+        timeout = int(lmstudio_config.get("timeout_seconds", 180))
+
+        models_response = requests.get(f"{native_base}/api/v1/models", timeout=5)
+        self._raise_for_status(models_response)
+        models = models_response.json().get("models", [])
+        if any(item.get("key") == model and item.get("loaded_instances") for item in models):
             return
-        launch = lmstudio_config.get("launch", {}) or {}
-        if not launch.get("enabled"):
-            raise VisualCheckError(f"LM Studio is not available at {api_base}")
-        command = launch.get("command")
-        if not command:
-            raise VisualCheckError("LM Studio launch is enabled but no command is configured")
-        subprocess.Popen(command)
-        deadline = time.time() + float(launch.get("wait_seconds", 90))
-        while time.time() < deadline:
-            if self._lmstudio_available(api_base):
-                return
-            time.sleep(3)
-        raise VisualCheckError(f"LM Studio did not become available at {api_base}")
+
+        payload: dict[str, Any] = {"model": model}
+        if lmstudio_config.get("context_length") is not None:
+            payload["context_length"] = int(lmstudio_config["context_length"])
+        load_response = requests.post(f"{native_base}/api/v1/models/load", json=payload, timeout=timeout)
+        self._raise_for_status(load_response)
+
+    def _raise_for_status(self, response: requests.Response) -> None:
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            detail = response.text.strip()
+            if detail:
+                raise VisualCheckError(f"{exc}; response: {detail[:2000]}") from exc
+            raise
 
     def _lmstudio_available(self, api_base: str) -> bool:
         try:
