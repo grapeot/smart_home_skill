@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -7,6 +8,7 @@ import httpx
 import yaml
 
 logger = logging.getLogger(__name__)
+SNAPSHOT_RETRY_DELAYS_SECONDS = (1, 3)
 
 
 class CameraService:
@@ -40,13 +42,20 @@ class CameraService:
             self._client = httpx.AsyncClient(
                 auth=httpx.DigestAuth(user, password),
                 timeout=httpx.Timeout(15.0, connect=5.0),
+                headers={"Connection": "close"},
             )
         return self._client
 
-    async def close(self):
-        if self._client:
-            await self._client.aclose()
+    async def _reset_client(self) -> None:
+        if self._client is not None:
+            try:
+                await self._client.aclose()
+            except Exception:
+                pass
             self._client = None
+
+    async def close(self):
+        await self._reset_client()
 
     def get_cameras(self) -> list[dict]:
         return [{"name": c["name"], "id": c["id"]} for c in self.cameras]
@@ -65,17 +74,30 @@ class CameraService:
         ip = camera["ip"]
         url = f"http://{ip}/cgi-bin/snapshot.cgi"
 
-        try:
-            client = await self._get_client()
-            response = await client.get(url)
-            if response.status_code == 200:
-                return response.content, None
-            else:
+        for attempt in range(len(SNAPSHOT_RETRY_DELAYS_SECONDS) + 1):
+            try:
+                client = await self._get_client()
+                response = await client.get(url)
+                if response.status_code == 200:
+                    return response.content, None
+                if attempt < len(SNAPSHOT_RETRY_DELAYS_SECONDS):
+                    await self._reset_client()
+                    await asyncio.sleep(SNAPSHOT_RETRY_DELAYS_SECONDS[attempt])
+                    continue
                 return None, f"Camera returned status {response.status_code}"
-        except httpx.TimeoutException:
-            return None, f"Timeout fetching snapshot from {camera['name']}"
-        except Exception as e:
-            return None, f"Error fetching snapshot: {str(e)}"
+            except httpx.TimeoutException:
+                if attempt < len(SNAPSHOT_RETRY_DELAYS_SECONDS):
+                    await self._reset_client()
+                    await asyncio.sleep(SNAPSHOT_RETRY_DELAYS_SECONDS[attempt])
+                    continue
+                return None, f"Timeout fetching snapshot from {camera['name']}"
+            except Exception as e:
+                if attempt < len(SNAPSHOT_RETRY_DELAYS_SECONDS):
+                    await self._reset_client()
+                    await asyncio.sleep(SNAPSHOT_RETRY_DELAYS_SECONDS[attempt])
+                    continue
+                return None, f"Error fetching snapshot: {str(e)}"
+        return None, f"Error fetching snapshot: exhausted retries for {camera['name']}"
 
 
 camera_service = CameraService()

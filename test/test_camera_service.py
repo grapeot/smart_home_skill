@@ -66,6 +66,26 @@ class TestCameraService:
             assert "Timeout" in error
 
     @pytest.mark.asyncio
+    async def test_get_snapshot_retries_disconnect_with_backoff(self, camera_service):
+        import httpx
+
+        failed_client = AsyncMock()
+        failed_client.get = AsyncMock(side_effect=httpx.RemoteProtocolError("disconnected"))
+        success_response = MagicMock(status_code=200, content=b"fake_image_data")
+        success_client = AsyncMock()
+        success_client.get = AsyncMock(return_value=success_response)
+
+        with patch.object(camera_service, "_get_client", side_effect=[failed_client, success_client]), patch.object(
+            camera_service, "_reset_client", new_callable=AsyncMock
+        ) as reset_client, patch("services.camera_service.asyncio.sleep", new_callable=AsyncMock) as sleep:
+            image_data, error = await camera_service.get_snapshot("test_cam")
+
+        assert error is None
+        assert image_data == b"fake_image_data"
+        reset_client.assert_awaited_once()
+        sleep.assert_awaited_once_with(1)
+
+    @pytest.mark.asyncio
     async def test_close_client(self, camera_service):
         mock_client = AsyncMock()
         camera_service._client = mock_client
