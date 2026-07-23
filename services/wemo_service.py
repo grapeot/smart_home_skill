@@ -9,6 +9,11 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
+def _as_switch_state(state: object) -> Optional[bool]:
+    return None if state is None else bool(state)
+
+
 class WemoService:
     def __init__(self):
         self.devices: Dict[str, pywemo.WeMoDevice] = {}
@@ -141,7 +146,7 @@ class WemoService:
                 state = device.get_state()
                 result[name] = {
                     "name": name,
-                    "is_on": state,
+                    "is_on": _as_switch_state(state),
                     "host": device.host
                 }
             except Exception as e:
@@ -151,7 +156,7 @@ class WemoService:
                         state = refreshed_device.get_state()
                         result[name] = {
                             "name": name,
-                            "is_on": state,
+                            "is_on": _as_switch_state(state),
                             "host": refreshed_device.host,
                             "rediscovered": True,
                         }

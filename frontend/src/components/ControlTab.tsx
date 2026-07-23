@@ -207,6 +207,11 @@ export function ControlTab() {
               Loading switches...
             </div>
           )}
+          {!wemoLoading && wemoDevices.length === 0 && (
+            <div className="px-4 py-6 text-sm text-gray-500">
+              {error ? 'Unable to load switches.' : 'No switches reported.'}
+            </div>
+          )}
           {wemoDevices.map(([name, device]) => (
             <div key={name} className="flex items-center justify-between px-4 py-3">
               <div>

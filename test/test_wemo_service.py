@@ -116,3 +116,12 @@ def test_get_all_status_refreshes_failed_device(monkeypatch):
     assert result["coffee"]["is_on"] == 1
     assert result["coffee"]["host"] == "192.0.2.10"
     assert result["coffee"]["rediscovered"] is True
+
+
+def test_get_all_status_normalizes_non_boolean_state():
+    service = WemoService()
+    service.devices = {"veggie": FakeWemoDevice("Veggie", "192.0.2.11", 49153, state=8)}
+
+    result = service.get_all_status()
+
+    assert result["veggie"]["is_on"] is True
