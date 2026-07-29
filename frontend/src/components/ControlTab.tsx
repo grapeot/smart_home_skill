@@ -15,7 +15,7 @@ function sensorState(device: RingSensorStatus): string {
 }
 
 export function ControlTab() {
-  const { status, loading, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage, refreshRing } = useDeviceStore();
+  const { status, loading, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage, refreshRing, toggleSamsungTV } = useDeviceStore();
   const { cameras, getSnapshotUrl } = useCameras();
   const [wemoLoading, setWemoLoading] = useState(false);
   const [garageImageKey, setGarageImageKey] = useState(0);
@@ -33,7 +33,7 @@ export function ControlTab() {
       }
     };
 
-    fetchStatus(['hue', 'rinnai', 'garage']);
+    fetchStatus(['hue', 'rinnai', 'garage', 'samsung']);
     fetchStatus(['ring']);
     fetchWemoStatus();
     const fastInterval = setInterval(() => fetchStatus(['hue', 'rinnai', 'garage']), 10000);
@@ -236,6 +236,37 @@ export function ControlTab() {
           ))}
         </div>
       </section>
+
+      {/* Samsung TV */}
+      {status?.samsung?.configured && (
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900">Samsung TV</h3>
+            <button
+              onClick={() => toggleSamsungTV()}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${status?.samsung?.is_on ? 'bg-blue-500' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${status?.samsung?.is_on ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          <div className="px-5 py-3">
+            <div className="flex items-center gap-4 text-sm">
+              <span className={`font-medium ${status?.samsung?.is_on ? 'text-blue-600' : 'text-gray-500'}`}>
+                {status?.samsung?.is_on ? 'On' : 'Off'}
+              </span>
+              {status?.samsung?.volume != null && (
+                <span className="text-gray-500">Vol: {status.samsung.volume}</span>
+              )}
+              {status?.samsung?.muted && (
+                <span className="text-amber-500">Muted</span>
+              )}
+              {status?.samsung?.error && (
+                <span className="text-red-500">{status.samsung.error}</span>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Garage doors */}
       {status?.garage?.available && (

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { DeviceStatus, RingStatusResponse } from '../types';
 
-type DeviceKey = 'hue' | 'wemo' | 'rinnai' | 'garage' | 'ring';
+type DeviceKey = 'hue' | 'wemo' | 'rinnai' | 'garage' | 'ring' | 'samsung';
 
 const RING_CACHE_KEY = 'smart_home:ring_status:v1';
 const RING_CACHE_TTL_MS = 60_000;
@@ -18,6 +18,7 @@ interface DeviceStore {
   circulateRinnai: (duration?: number) => Promise<void>;
   refreshRinnai: () => Promise<void>;
   toggleGarage: (doorIndex: number) => Promise<void>;
+  toggleSamsungTV: () => Promise<void>;
 }
 
 const API_BASE = '/api';
@@ -157,6 +158,29 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
     try {
       const res = await fetch(`${API_BASE}/garage/${doorIndex}/toggle`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to toggle garage door');
+    } catch (error) {
+      set({ error: String(error) });
+    }
+  },
+
+  toggleSamsungTV: async () => {
+    try {
+      // 乐观更新：立刻翻转前端状态
+      const prev = get().status;
+      if (prev?.samsung) {
+        set({ status: { ...prev, samsung: { ...prev.samsung, is_on: !prev.samsung.is_on } } });
+      }
+
+      const res = await fetch(`${API_BASE}/samsung/power/toggle`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.status === 'error') {
+        // 回滚乐观更新
+        if (prev?.samsung) set({ status: prev });
+        throw new Error(data.message || 'Failed to toggle Samsung TV');
+      }
+      // SmartThings 云端有延迟，等 2 秒再刷新真实状态
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await get().fetchStatus(['samsung']);
     } catch (error) {
       set({ error: String(error) });
     }

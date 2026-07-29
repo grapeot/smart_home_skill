@@ -40,6 +40,14 @@ class WemoDeviceStatus(FlexibleModel):
     error: Optional[str] = None
 
 
+class SamsungTVStatus(FlexibleModel):
+    configured: Optional[bool] = None
+    is_on: Optional[bool] = None
+    volume: Optional[int] = None
+    muted: Optional[bool] = None
+    error: Optional[str] = None
+
+
 class RinnaiStatus(FlexibleModel):
     device_id: Optional[str] = None
     is_online: Optional[bool] = None
@@ -117,6 +125,7 @@ class AllStatusResponse(FlexibleModel):
     rinnai: Optional[RinnaiStatus] = None
     garage: Optional[GarageStatus] = None
     ring: Optional[RingStatusResponse] = None
+    samsung: Optional[SamsungTVStatus] = None
 
 
 class HistoryRecord(FlexibleModel):
