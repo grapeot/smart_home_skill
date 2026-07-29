@@ -63,10 +63,19 @@ export interface RingStatusResponse {
   error?: string;
 }
 
+export interface SamsungTVStatus {
+  configured?: boolean;
+  is_on?: boolean;
+  volume?: number;
+  muted?: boolean;
+  error?: string;
+}
+
 export interface DeviceStatus {
   hue?: HueStatus;
   wemo?: Record<string, WemoDevice>;
   rinnai?: RinnaiStatus;
   garage?: GarageStatus;
   ring?: RingStatusResponse;
+  samsung?: SamsungTVStatus;
 }
