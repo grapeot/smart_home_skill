@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 import uvicorn
 
-from api import hue, wemo, rinnai, garage, status, history, cameras, schedule, visual_check, ring, samsung
+from api import hue, wemo, rinnai, garage, status, history, cameras, schedule, visual_check, ring, samsung, roon, kids_music
 from models.schemas import HealthResponse
 from services.hue_service import hue_service
 from services.wemo_service import wemo_service
@@ -24,6 +24,8 @@ from services.camera_service import camera_service
 from services.scheduler import init_scheduler, shutdown_scheduler
 from services.wemo_schedule import WemoScheduleManager
 from services.action_executor import init_action_executor
+from services.roon_service import roon_service
+from services.kids_music_service import kids_music_service
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -143,6 +145,13 @@ async def lifespan(app: FastAPI):
         wemo_schedule_manager.register_device(name, device)
     wemo_schedule_manager.start()
 
+    try:
+        roon_result = await asyncio.to_thread(roon_service.connect)
+        logger.info("Roon connect: %s", roon_result.get("message") or roon_result.get("status"))
+    except Exception as exc:
+        logger.warning("Roon connect skipped: %s", exc)
+    kids_music_service.start_watchdog()
+
     logger.info("Smart Home Dashboard started")
 
     yield
@@ -153,6 +162,9 @@ async def lifespan(app: FastAPI):
 
     if wemo_schedule_manager:
         wemo_schedule_manager.stop()
+
+    kids_music_service.stop_watchdog()
+    await asyncio.to_thread(roon_service.close)
 
     await camera_service.close()
 
@@ -202,6 +214,8 @@ app.include_router(schedule.router)
 app.include_router(visual_check.router)
 app.include_router(ring.router)
 app.include_router(samsung.router)
+app.include_router(roon.router)
+app.include_router(kids_music.router)
 
 @app.get("/health", response_model=HealthResponse, tags=["health"], summary="Health check")
 async def health_check():

@@ -43,9 +43,20 @@ class TestOpenAPI:
             "/api/wemo/{device_name}/off",
             "/api/rinnai/maintenance",
             "/api/rinnai/circulate",
+            "/api/roon/play",
+            "/api/roon/pause",
+            "/api/roon/stop",
+            "/api/roon/playpause",
+            "/api/roon/sleep-timer",
+            "/api/roon/pair/start",
+            "/api/kids-music/playpause",
         ]:
             assert "post" in paths[path]
             assert "get" not in paths[path]
+        assert "get" in paths["/api/roon/status"]
+        assert "get" in paths["/api/roon/zones"]
+        assert "get" in paths["/api/roon/pair/status"]
+        assert "get" in paths["/api/kids-music/state"]
         assert "/{full_path}" not in paths
         assert schema["info"]["title"] == "Smart Home Skill"
 
@@ -378,3 +389,67 @@ class TestScheduleEndpoints:
             
             response = client.delete("/api/schedule/actions/nonexistent")
             assert response.status_code == 404
+
+
+class TestRoonApi:
+
+    @patch("api.roon.roon_service.get_status")
+    def test_roon_status(self, mock_status):
+        mock_status.return_value = {
+            "configured": True,
+            "authorized": True,
+            "connected": True,
+            "core_name": "Quantum",
+            "zones": [],
+        }
+        response = client.get("/api/roon/status")
+        assert response.status_code == 200
+        assert response.json()["core_name"] == "Quantum"
+
+    @patch("api.roon.roon_service.play_playlist")
+    def test_roon_play_playlist(self, mock_play):
+        mock_play.return_value = {
+            "status": "success",
+            "message": "Playing",
+            "zone": "bedroom",
+            "playlist": "k-pop",
+        }
+        response = client.post(
+            "/api/roon/play",
+            json={"zone": "bedroom", "source": "playlist", "playlist": "k-pop"},
+        )
+        assert response.status_code == 200
+        mock_play.assert_called_once_with("bedroom", "k-pop")
+
+    @patch("api.kids_music.kids_music_service.playpause")
+    def test_kids_music_playpause(self, mock_pp):
+        mock_pp.return_value = {
+            "status": "success",
+            "action": "play",
+            "remaining_plays": 2,
+            "playing": True,
+        }
+        response = client.post("/api/kids-music/playpause")
+        assert response.status_code == 200
+        assert response.json()["action"] == "play"
+
+    def test_create_roon_schedule_action_shape(self):
+        with patch("api.schedule.dynamic_scheduler.schedule") as mock_schedule:
+            mock_action = Mock()
+            mock_action.to_dict.return_value = {
+                "id": "r1",
+                "action": {"type": "roon.stop", "params": {"zone": "bedroom"}},
+                "action_display": "Stop bedroom",
+                "minutes": 30,
+                "status": "pending",
+            }
+            mock_schedule.return_value = mock_action
+            response = client.post(
+                "/api/schedule/actions",
+                json={
+                    "minutes": 30,
+                    "action": {"type": "roon.stop", "params": {"zone": "bedroom"}},
+                },
+            )
+            assert response.status_code == 200
+            assert response.json()["action"]["type"] == "roon.stop"
