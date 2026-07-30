@@ -48,6 +48,74 @@ class SamsungTVStatus(FlexibleModel):
     error: Optional[str] = None
 
 
+class RoonNowPlaying(FlexibleModel):
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    album: Optional[str] = None
+
+
+class RoonOutput(FlexibleModel):
+    output_id: Optional[str] = None
+    display_name: Optional[str] = None
+
+
+class RoonZone(FlexibleModel):
+    zone_id: Optional[str] = None
+    display_name: Optional[str] = None
+    state: Optional[str] = None
+    now_playing: Optional[RoonNowPlaying] = None
+    outputs: List[RoonOutput] = Field(default_factory=list)
+
+
+class RoonStatus(FlexibleModel):
+    configured: Optional[bool] = None
+    authorized: Optional[bool] = None
+    connected: Optional[bool] = None
+    core_name: Optional[str] = None
+    core_id: Optional[str] = None
+    host: Optional[str] = None
+    zone_count: Optional[int] = None
+    zones: Optional[List[RoonZone]] = None
+    kids: Optional[Dict[str, Any]] = None
+    pair: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+class RoonZonesResponse(FlexibleModel):
+    status: Optional[str] = None
+    zones: List[RoonZone] = Field(default_factory=list)
+    message: Optional[str] = None
+
+
+class RoonPairStatus(FlexibleModel):
+    status: Optional[str] = None
+    message: Optional[str] = None
+    authorized: Optional[bool] = None
+    display_name: Optional[str] = None
+    core_name: Optional[str] = None
+    core_id: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[int] = None
+
+
+class KidsMusicState(FlexibleModel):
+    status: Optional[str] = None
+    message: Optional[str] = None
+    action: Optional[str] = None
+    day_key: Optional[str] = None
+    remaining_plays: Optional[int] = None
+    daily_plays: Optional[int] = None
+    unit_minutes: Optional[int] = None
+    playing: Optional[bool] = None
+    zone: Optional[str] = None
+    playlist: Optional[str] = None
+    accrued_play_seconds: Optional[float] = None
+    seconds_into_current_unit: Optional[float] = None
+    timezone: Optional[str] = None
+    can_start: Optional[bool] = None
+    sleep_timer_minutes: Optional[float] = None
+
+
 class RinnaiStatus(FlexibleModel):
     device_id: Optional[str] = None
     is_online: Optional[bool] = None
@@ -126,6 +194,7 @@ class AllStatusResponse(FlexibleModel):
     garage: Optional[GarageStatus] = None
     ring: Optional[RingStatusResponse] = None
     samsung: Optional[SamsungTVStatus] = None
+    roon: Optional[RoonStatus] = None
 
 
 class HistoryRecord(FlexibleModel):
@@ -225,6 +294,31 @@ class GarageToggleAction(StrictModel):
     params: GarageToggleParams
 
 
+class RoonZoneParams(StrictModel):
+    zone: str = Field(..., min_length=1)
+
+
+class RoonPlayParams(StrictModel):
+    zone: str = Field(..., min_length=1)
+    source: Literal["queue", "playlist"] = "queue"
+    playlist: Optional[str] = None
+
+
+class RoonPlayAction(StrictModel):
+    type: Literal["roon.play"]
+    params: RoonPlayParams
+
+
+class RoonPauseAction(StrictModel):
+    type: Literal["roon.pause"]
+    params: RoonZoneParams
+
+
+class RoonStopAction(StrictModel):
+    type: Literal["roon.stop"]
+    params: RoonZoneParams
+
+
 ScheduleAction = Annotated[
     Union[
         HueToggleAction,
@@ -235,6 +329,9 @@ ScheduleAction = Annotated[
         WemoOffAction,
         RinnaiCirculateAction,
         GarageToggleAction,
+        RoonPlayAction,
+        RoonPauseAction,
+        RoonStopAction,
     ],
     Field(discriminator="type"),
 ]

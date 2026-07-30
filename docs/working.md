@@ -6,6 +6,13 @@ The project is being reframed from a Hue-oriented dashboard into `smart_home_ski
 
 ## Changelog
 
+### 2026-07-30
+
+- Added Roon integration via `roonapi==0.1.6`: pair flow, zone list, play queue/playlist, pause/stop/playpause, and local sleep timer (Roon has no native sleep-timer API).
+- Added kids-music ticket API for M5Paper: daily plays (default 2 × 15 min), playlist `k-pop`, zone `bedroom`, Pacific day boundary at 04:00.
+- Agent setup: `POST /api/roon/pair/start` → user Enables extension → poll `/api/roon/pair/status` → `/api/roon/zones`.
+- Scheduled actions gained `roon.play`, `roon.pause`, `roon.stop`.
+
 ### 2026-07-18
 
 - Added configurable LM Studio chat-template arguments so visual checks can disable Qwen reasoning and preserve the token budget for schema-constrained JSON.

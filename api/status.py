@@ -11,12 +11,13 @@ from services.meross_service import meross_service
 from services.garage_config import garage_config
 from services.ring_service import ring_service
 from services.samsung_service import samsung_service
+from services.roon_service import roon_service
 from models.database import save_device_state
 
 router = APIRouter(tags=["status"])
 logger = logging.getLogger(__name__)
 
-ALL_DEVICES = {"hue", "wemo", "rinnai", "garage", "ring", "samsung"}
+ALL_DEVICES = {"hue", "wemo", "rinnai", "garage", "ring", "samsung", "roon"}
 
 
 def _safe_hue_status():
@@ -112,5 +113,12 @@ async def get_all_status(
 
     if "samsung" in requested:
         result["samsung"] = await asyncio.to_thread(samsung_service.get_status)
+
+    if "roon" in requested:
+        try:
+            result["roon"] = await asyncio.to_thread(roon_service.get_status)
+        except Exception as e:
+            logger.warning(f"Roon status failed: {e}")
+            result["roon"] = {"configured": False, "error": str(e)}
 
     return result
