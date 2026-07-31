@@ -49,14 +49,13 @@ class TestOpenAPI:
             "/api/roon/playpause",
             "/api/roon/sleep-timer",
             "/api/roon/pair/start",
-            "/api/kids-music/playpause",
         ]:
             assert "post" in paths[path]
             assert "get" not in paths[path]
         assert "get" in paths["/api/roon/status"]
         assert "get" in paths["/api/roon/zones"]
         assert "get" in paths["/api/roon/pair/status"]
-        assert "get" in paths["/api/kids-music/state"]
+        assert "get" in paths["/api/roon/playlists"]
         assert "/{full_path}" not in paths
         assert schema["info"]["title"] == "Smart Home Skill"
 
@@ -420,18 +419,6 @@ class TestRoonApi:
         )
         assert response.status_code == 200
         mock_play.assert_called_once_with("bedroom", "k-pop")
-
-    @patch("api.kids_music.kids_music_service.playpause")
-    def test_kids_music_playpause(self, mock_pp):
-        mock_pp.return_value = {
-            "status": "success",
-            "action": "play",
-            "remaining_plays": 2,
-            "playing": True,
-        }
-        response = client.post("/api/kids-music/playpause")
-        assert response.status_code == 200
-        assert response.json()["action"] == "play"
 
     def test_create_roon_schedule_action_shape(self):
         with patch("api.schedule.dynamic_scheduler.schedule") as mock_schedule:

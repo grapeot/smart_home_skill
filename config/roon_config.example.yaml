@@ -4,8 +4,7 @@
 # 1. POST /api/roon/pair/start
 # 2. Ask user to Enable the extension in Roon Settings → Extensions
 # 3. Poll GET /api/roon/pair/status until authorized=true
-# 4. GET /api/roon/zones and confirm zone names
-# 5. Set kids defaults below if using kids-music
+# 4. GET /api/roon/zones and GET /api/roon/playlists
 
 core_host: null          # null = discover; or pin e.g. "192.168.1.10"
 core_port: 9330
@@ -15,12 +14,3 @@ display_name: Smart Home Roon
 display_version: "1.0.0"
 publisher: grapeot
 email: local@invalid
-
-# Kids music defaults (used by /api/kids-music/*)
-kids:
-  zone_name: bedroom
-  playlist_name: k-pop
-  daily_plays: 2
-  unit_minutes: 15
-  timezone: America/Los_Angeles
-  day_boundary_hour: 4

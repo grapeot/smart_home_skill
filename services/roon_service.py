@@ -56,17 +56,6 @@ class RoonService:
         with self._lock:
             self._config = self._read_config()
 
-    @property
-    def kids_config(self) -> Dict[str, Any]:
-        kids = self._config.get("kids") or {}
-        return {
-            "zone_name": kids.get("zone_name", "bedroom"),
-            "playlist_name": kids.get("playlist_name", "k-pop"),
-            "daily_plays": int(kids.get("daily_plays", 2)),
-            "unit_minutes": int(kids.get("unit_minutes", 15)),
-            "timezone": kids.get("timezone", "America/Los_Angeles"),
-            "day_boundary_hour": int(kids.get("day_boundary_hour", 4)),
-        }
 
     def _load_auth(self) -> Dict[str, Any]:
         if not self.auth_path.exists():
@@ -210,8 +199,44 @@ class RoonService:
 
     def start_pairing(self, timeout_seconds: int = 600) -> Dict[str, Any]:
         with self._lock:
+            if self._api is not None and getattr(self._api, "token", None):
+                auth = {
+                    "token": self._api.token,
+                    "core_id": self._api.core_id,
+                    "core_name": self._api.core_name,
+                    "host": getattr(self._api, "host", None),
+                    "port": getattr(self._api, "port", None) or 9330,
+                }
+                self._save_auth(auth)
+                self._pair_status = {
+                    "status": "authorized",
+                    "message": f"Already paired with {self._api.core_name}",
+                    "authorized": True,
+                    "core_id": self._api.core_id,
+                    "core_name": self._api.core_name,
+                    "host": auth.get("host"),
+                    "port": auth.get("port"),
+                    "display_name": self._appinfo()["display_name"],
+                }
+                return dict(self._pair_status)
             if self._pair_thread and self._pair_thread.is_alive():
                 return dict(self._pair_status)
+            # Prefer reconnect with saved token before a fresh Enable flow.
+            auth = self._load_auth()
+            if auth.get("token"):
+                connected = self.connect()
+                if connected.get("authorized"):
+                    self._pair_status = {
+                        "status": "authorized",
+                        "message": connected.get("message"),
+                        "authorized": True,
+                        "core_id": connected.get("core_id"),
+                        "core_name": connected.get("core_name"),
+                        "host": connected.get("host"),
+                        "port": connected.get("port"),
+                        "display_name": self._appinfo()["display_name"],
+                    }
+                    return dict(self._pair_status)
             self._pair_status = {
                 "status": "waiting",
                 "message": (
@@ -286,6 +311,28 @@ class RoonService:
                             return
                 time.sleep(0.5)
             with self._lock:
+                api = self._api
+                if api is not None and getattr(api, "token", None):
+                    self._save_auth(
+                        {
+                            "token": api.token,
+                            "core_id": api.core_id,
+                            "core_name": api.core_name,
+                            "host": host,
+                            "port": port,
+                        }
+                    )
+                    self._pair_status = {
+                        "status": "authorized",
+                        "message": f"Paired with {api.core_name}",
+                        "authorized": True,
+                        "core_id": api.core_id,
+                        "core_name": api.core_name,
+                        "host": host,
+                        "port": port,
+                    }
+                    return
+                # Keep pending socket if still open so a late Enable can finish.
                 self._pair_status = {
                     "status": "timeout",
                     "message": "Pairing timed out before Enable",
@@ -354,7 +401,6 @@ class RoonService:
                 "host": getattr(api, "host", auth.get("host")),
                 "zone_count": len(zones),
                 "zones": zones,
-                "kids": self.kids_config,
             }
 
     def _serialize_zones(self, api) -> List[Dict[str, Any]]:
@@ -417,40 +463,50 @@ class RoonService:
                 "state": "playing",
             }
 
+    def list_playlists(self) -> Dict[str, Any]:
+        with self._lock:
+            api = self._require_api()
+            zones = self._serialize_zones(api)
+            if not zones:
+                return {"status": "error", "message": "No zones available", "playlists": []}
+            zone_id = zones[0]["zone_id"]
+            names = self._list_playlist_titles(api, zone_id)
+            return {"status": "success", "playlists": names}
+
     def play_playlist(self, zone_name: str, playlist_name: str) -> Dict[str, Any]:
         with self._lock:
             api = self._require_api()
             zone = self._resolve_zone(api, zone_name)
             zone_id = zone["zone_id"]
-            ok = self._play_playlist_hierarchy(api, zone_id, playlist_name)
-            if not ok:
+            matched = self._play_playlist_hierarchy(api, zone_id, playlist_name)
+            if not matched:
                 # Fallback through generic browse path used by Home Assistant.
-                ok = bool(
-                    api.play_media(
-                        zone_id,
-                        ["Playlists", playlist_name],
-                        action="Play Now",
-                        report_error=False,
-                    )
-                )
-            if not ok:
+                for path in (
+                    ["Playlists", playlist_name],
+                    ["Playlists", playlist_name.strip()],
+                ):
+                    if api.play_media(zone_id, path, action="Play Now", report_error=False):
+                        matched = playlist_name
+                        break
+            if not matched:
+                available = self._list_playlist_titles(api, zone_id)[:12]
                 return {
                     "status": "error",
                     "message": f"Playlist not found or not playable: {playlist_name}",
                     "zone": zone.get("display_name"),
+                    "available_playlists": available,
                 }
             api.repeat(zone_id, "loop")
             api.shuffle(zone_id, False)
             return {
                 "status": "success",
-                "message": f"Playing playlist '{playlist_name}' on {zone.get('display_name')}",
+                "message": f"Playing playlist '{matched}' on {zone.get('display_name')}",
                 "zone": zone.get("display_name"),
-                "playlist": playlist_name,
+                "playlist": matched,
                 "state": "playing",
             }
 
-    def _play_playlist_hierarchy(self, api, zone_id: str, playlist_name: str) -> bool:
-        target = playlist_name.strip().lower()
+    def _list_playlist_titles(self, api, zone_id: str) -> List[str]:
         opts = {
             "zone_or_output_id": zone_id,
             "hierarchy": "playlists",
@@ -459,10 +515,10 @@ class RoonService:
         }
         header = api.browse_browse(opts)
         if not header or "list" not in header:
-            return False
+            return []
         total = int(header["list"].get("count") or 0)
         offset = 0
-        item_key = None
+        names: List[str] = []
         while offset < max(total, 1):
             loaded = api.browse_load(
                 {
@@ -476,15 +532,61 @@ class RoonService:
             if not items:
                 break
             for item in items:
-                title = (item.get("title") or "").strip().lower()
-                if title == target:
+                title = (item.get("title") or "").strip()
+                if title:
+                    names.append(title)
+            offset += len(items)
+            if len(items) < 100:
+                break
+        return names
+
+    def _play_playlist_hierarchy(self, api, zone_id: str, playlist_name: str) -> Optional[str]:
+        target = playlist_name.strip().lower()
+        opts = {
+            "zone_or_output_id": zone_id,
+            "hierarchy": "playlists",
+            "pop_all": True,
+            "count": 100,
+        }
+        header = api.browse_browse(opts)
+        if not header or "list" not in header:
+            return None
+        total = int(header["list"].get("count") or 0)
+        offset = 0
+        item_key = None
+        matched_title = None
+        fuzzy_key = None
+        fuzzy_title = None
+        while offset < max(total, 1):
+            loaded = api.browse_load(
+                {
+                    "zone_or_output_id": zone_id,
+                    "hierarchy": "playlists",
+                    "count": 100,
+                    "offset": offset,
+                }
+            )
+            items = (loaded or {}).get("items") or []
+            if not items:
+                break
+            for item in items:
+                title = (item.get("title") or "").strip()
+                low = title.lower()
+                if low == target:
                     item_key = item.get("item_key")
+                    matched_title = title
                     break
+                if fuzzy_key is None and (target in low or low in target):
+                    fuzzy_key = item.get("item_key")
+                    fuzzy_title = title
             if item_key:
                 break
             offset += len(items)
+        if not item_key and fuzzy_key:
+            item_key = fuzzy_key
+            matched_title = fuzzy_title
         if not item_key:
-            return False
+            return None
 
         browse = api.browse_browse(
             {
@@ -495,7 +597,7 @@ class RoonService:
             }
         )
         if not browse:
-            return False
+            return None
         loaded = api.browse_load(
             {
                 "zone_or_output_id": zone_id,
@@ -521,7 +623,7 @@ class RoonService:
             if first.get("hint") in ("action", "action_list"):
                 play_key = first.get("item_key")
         if not play_key:
-            return False
+            return None
         api.browse_browse(
             {
                 "zone_or_output_id": zone_id,
@@ -529,7 +631,7 @@ class RoonService:
                 "item_key": play_key,
             }
         )
-        return True
+        return matched_title or playlist_name
 
     def pause(self, zone_name: str) -> Dict[str, Any]:
         with self._lock:
