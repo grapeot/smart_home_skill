@@ -777,13 +777,54 @@ class RoonService:
                 play_key = first.get("item_key")
         if not play_key:
             return None
-        api.browse_browse(
+        result = api.browse_browse(
             {
                 "zone_or_output_id": zone_id,
                 "hierarchy": "playlists",
                 "item_key": play_key,
             }
         )
+        # If the action returned an action_list (sub-menu of play options),
+        # we need to load items and select "Play Now" to actually trigger.
+        hint = None
+        if result and isinstance(result, dict):
+            hint = (result.get("list") or {}).get("hint")
+        if hint == "action_list" or (result and isinstance(result, dict) and result.get("action") == "list"):
+            sub = api.browse_load(
+                {
+                    "zone_or_output_id": zone_id,
+                    "hierarchy": "playlists",
+                    "count": 100,
+                    "offset": 0,
+                }
+            )
+            sub_items = (sub or {}).get("items") or []
+            now_key = None
+            for si in sub_items:
+                st = (si.get("title") or "").lower()
+                sh = si.get("hint")
+                if sh == "action" and ("play now" in st or st == "play now"):
+                    now_key = si.get("item_key")
+                    break
+            if not now_key:
+                for si in sub_items:
+                    if si.get("hint") == "action" and "play" in (si.get("title") or "").lower():
+                        now_key = si.get("item_key")
+                        break
+            if not now_key and sub_items:
+                # first action
+                for si in sub_items:
+                    if si.get("hint") == "action":
+                        now_key = si.get("item_key")
+                        break
+            if now_key:
+                api.browse_browse(
+                    {
+                        "zone_or_output_id": zone_id,
+                        "hierarchy": "playlists",
+                        "item_key": now_key,
+                    }
+                )
         return matched_title or playlist_name
 
     def pause(self, zone_name: str) -> Dict[str, Any]:
