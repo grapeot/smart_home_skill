@@ -13,6 +13,9 @@ ACTION_DISPLAY_NAMES = {
     'wemo.off': 'Turn {device} off',
     'rinnai.circulate': 'Run water heater circulation for {duration} minutes',
     'garage.toggle': 'Toggle garage door {door}',
+    'roon.play': 'Play {source} on {zone}',
+    'roon.pause': 'Pause {zone}',
+    'roon.stop': 'Stop {zone}',
 }
 
 
@@ -66,5 +69,21 @@ def init_action_executor():
     
     action_executor.register('rinnai.circulate', lambda p: rinnai_service.start_circulation(p.get('duration', 5)))
     action_executor.register('garage.toggle', lambda p: meross_service.toggle_door(p['door']))
+
+    from services.roon_service import roon_service
+
+    def _roon_play(params: dict):
+        source = (params.get("source") or "queue").lower()
+        zone = params["zone"]
+        if source == "playlist":
+            playlist = params.get("playlist")
+            if not playlist:
+                return {"status": "error", "message": "playlist is required when source=playlist"}
+            return roon_service.play_playlist(zone, playlist)
+        return roon_service.play_queue(zone)
+
+    action_executor.register("roon.play", _roon_play)
+    action_executor.register("roon.pause", lambda p: roon_service.pause(p["zone"]))
+    action_executor.register("roon.stop", lambda p: roon_service.stop(p["zone"]))
     
     logger.info("Action executor initialized")
