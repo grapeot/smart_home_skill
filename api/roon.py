@@ -70,16 +70,21 @@ async def pair_status():
 )
 async def play(request: RoonPlayRequest):
     source = request.source.strip().lower()
-    if source == "queue":
-        result = await asyncio.to_thread(roon_service.play_queue, request.zone)
-    elif source == "playlist":
-        if not request.playlist:
-            raise HTTPException(status_code=400, detail="playlist is required when source=playlist")
-        result = await asyncio.to_thread(
-            roon_service.play_playlist, request.zone, request.playlist
-        )
-    else:
-        raise HTTPException(status_code=400, detail="source must be queue or playlist")
+    try:
+        if source == "queue":
+            result = await asyncio.to_thread(roon_service.play_queue, request.zone)
+        elif source == "playlist":
+            if not request.playlist:
+                raise HTTPException(status_code=400, detail="playlist is required when source=playlist")
+            result = await asyncio.to_thread(
+                roon_service.play_playlist, request.zone, request.playlist
+            )
+        else:
+            raise HTTPException(status_code=400, detail="source must be queue or playlist")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if result.get("status") == "error":
         raise HTTPException(status_code=400, detail=result.get("message") or "play failed")
     return result
@@ -92,7 +97,12 @@ async def play(request: RoonPlayRequest):
     dependencies=[Depends(require_control_auth)],
 )
 async def pause(request: RoonZoneRequest):
-    result = await asyncio.to_thread(roon_service.pause, request.zone)
+    try:
+        result = await asyncio.to_thread(roon_service.pause, request.zone)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if result.get("status") == "error":
         raise HTTPException(status_code=400, detail=result.get("message") or "pause failed")
     return result
@@ -105,7 +115,12 @@ async def pause(request: RoonZoneRequest):
     dependencies=[Depends(require_control_auth)],
 )
 async def stop(request: RoonZoneRequest):
-    result = await asyncio.to_thread(roon_service.stop, request.zone)
+    try:
+        result = await asyncio.to_thread(roon_service.stop, request.zone)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if result.get("status") == "error":
         raise HTTPException(status_code=400, detail=result.get("message") or "stop failed")
     return result
@@ -118,7 +133,12 @@ async def stop(request: RoonZoneRequest):
     dependencies=[Depends(require_control_auth)],
 )
 async def playpause(request: RoonZoneRequest):
-    result = await asyncio.to_thread(roon_service.playpause, request.zone)
+    try:
+        result = await asyncio.to_thread(roon_service.playpause, request.zone)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     if result.get("status") == "error":
         raise HTTPException(status_code=400, detail=result.get("message") or "playpause failed")
     return result

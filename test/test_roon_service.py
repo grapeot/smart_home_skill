@@ -43,9 +43,19 @@ class FakeRoonApi:
                 return zone
         return None
 
-    def playback_control(self, zone_id, control="play"):
-        self.calls.append(("playback_control", zone_id, control))
-        zone = self.zones[zone_id]
+    def playback_control(self, zone_or_output_id, control="play"):
+        self.calls.append(("playback_control", zone_or_output_id, control))
+        zone = self.zones.get(zone_or_output_id)
+        if zone is None:
+            for candidate in self.zones.values():
+                for output in candidate.get("outputs") or []:
+                    if output.get("output_id") == zone_or_output_id:
+                        zone = candidate
+                        break
+                if zone is not None:
+                    break
+        if zone is None:
+            raise KeyError(zone_or_output_id)
         if control == "play":
             zone["state"] = "playing"
         elif control == "pause":
@@ -53,11 +63,11 @@ class FakeRoonApi:
         elif control == "stop":
             zone["state"] = "stopped"
 
-    def repeat(self, zone_id, repeat="loop"):
-        self.calls.append(("repeat", zone_id, repeat))
+    def repeat(self, zone_or_output_id, repeat="loop"):
+        self.calls.append(("repeat", zone_or_output_id, repeat))
 
-    def shuffle(self, zone_id, shuffle=True):
-        self.calls.append(("shuffle", zone_id, shuffle))
+    def shuffle(self, zone_or_output_id, shuffle=True):
+        self.calls.append(("shuffle", zone_or_output_id, shuffle))
 
     def play_media(self, zone_id, path, action=None, report_error=True):
         self.calls.append(("play_media", zone_id, path, action))

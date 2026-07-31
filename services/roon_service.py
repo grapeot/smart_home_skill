@@ -142,6 +142,7 @@ class RoonService:
 
         api = RoonApi(self._appinfo(), token, host, port, blocking_init=False)
         self._api = api
+        self._patch_socket_compat(api)
         deadline = time.monotonic() + wait_seconds
         while time.monotonic() < deadline:
             if api.token and api.ready:
@@ -164,10 +165,12 @@ class RoonService:
                 "display_name": self._appinfo()["display_name"],
             }
 
-        # Wait briefly for zone subscription fill.
+        # Wait briefly for zone subscription fill; fall back to explicit get.
         wait_zones = time.monotonic() + 3
         while time.monotonic() < wait_zones and not api.zones:
             time.sleep(0.1)
+        if not api.zones:
+            self._refresh_zones(api)
 
         self._save_auth(
             {
@@ -375,12 +378,89 @@ class RoonService:
                 )
             return status
 
+    def _patch_socket_compat(self, api) -> None:
+        """websocket-client>=1.x can deliver empty frames; roonapi mis-handles them."""
+        sock = getattr(api, "_roonsocket", None)
+        if sock is None or getattr(sock, "_kw_compat_patched", False):
+            return
+        original = sock.on_message
+
+        def on_message(w_socket, message=None):
+            # Older websocket-client: on_message(message)
+            # Newer: on_message(ws, message). Empty/None must not become the ws object.
+            if message is None and not isinstance(w_socket, (bytes, bytearray, str)):
+                return
+            if message is None:
+                message = w_socket
+            if not isinstance(message, (bytes, bytearray, str)):
+                return
+            if isinstance(message, str):
+                message = message.encode("utf-8")
+            if not message:
+                return
+            return original(w_socket if not isinstance(w_socket, (bytes, bytearray, str)) else sock._socket, message)
+
+        sock.on_message = on_message
+        sock._kw_compat_patched = True
+
+    def _refresh_zones(self, api) -> None:
+        """Pull zones via request API; do not rely only on push subscription."""
+        try:
+            zones = api._get_zones()
+            if zones:
+                api._zones = zones
+        except Exception:
+            logger.exception("Failed to refresh Roon zones")
+        try:
+            outputs = api._get_outputs()
+            if outputs:
+                api._outputs = outputs
+        except Exception:
+            logger.exception("Failed to refresh Roon outputs")
+
     def _require_api(self):
         if self._api is None or not self._api.token:
             connected = self.connect()
             if connected.get("status") != "success":
                 raise RuntimeError(connected.get("message") or "Roon not connected")
-        return self._api
+        api = self._api
+        if api is None:
+            raise RuntimeError("Roon not connected")
+        self._patch_socket_compat(api)
+        # Zone subscription can lag or drop after reconnect; refresh explicitly.
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if api.zones:
+                break
+            self._refresh_zones(api)
+            if api.zones:
+                break
+            time.sleep(0.2)
+        return api
+
+    def _zone_output_id(self, zone: Dict[str, Any]) -> str:
+        outputs = zone.get("outputs") or []
+        if not outputs:
+            raise RuntimeError(f"Zone has no outputs: {zone.get('display_name')}")
+        return outputs[0]["output_id"]
+
+    def _wait_zone_state(
+        self, api, zone_name: str, wanted: set, timeout: float = 6.0
+    ) -> Dict[str, Any]:
+        deadline = time.monotonic() + timeout
+        last = {}
+        while time.monotonic() < deadline:
+            self._refresh_zones(api)
+            try:
+                last = self._resolve_zone(api, zone_name)
+            except KeyError:
+                time.sleep(0.2)
+                continue
+            state = (last.get("state") or "").lower()
+            if state in wanted:
+                return last
+            time.sleep(0.2)
+        return last
 
     def get_status(self) -> Dict[str, Any]:
         with self._lock:
@@ -403,6 +483,9 @@ class RoonService:
                     "connected": False,
                     "pair": dict(self._pair_status),
                 }
+            self._patch_socket_compat(api)
+            if not api.zones:
+                self._refresh_zones(api)
             zones = self._serialize_zones(api)
             return {
                 "configured": True,
@@ -450,6 +533,8 @@ class RoonService:
             return {"status": "success", "zones": self._serialize_zones(api)}
 
     def _resolve_zone(self, api, zone_name: str) -> Dict[str, Any]:
+        if not (api.zones or {}):
+            self._refresh_zones(api)
         zone = api.zone_by_name(zone_name)
         if zone:
             return zone
@@ -461,18 +546,46 @@ class RoonService:
             for output in candidate.get("outputs") or []:
                 if (output.get("display_name") or "").strip().lower() == target:
                     return candidate
-        raise KeyError(f"Zone not found: {zone_name}")
+        # One more forced refresh then retry once.
+        self._refresh_zones(api)
+        zone = api.zone_by_name(zone_name)
+        if zone:
+            return zone
+        for candidate in (api.zones or {}).values():
+            if (candidate.get("display_name") or "").strip().lower() == target:
+                return candidate
+            for output in candidate.get("outputs") or []:
+                if (output.get("display_name") or "").strip().lower() == target:
+                    return candidate
+        known = sorted(
+            {
+                (z.get("display_name") or "").strip()
+                for z in (api.zones or {}).values()
+                if z.get("display_name")
+            }
+        )
+        raise KeyError(f"Zone not found: {zone_name}. Known: {known}")
 
     def play_queue(self, zone_name: str) -> Dict[str, Any]:
         with self._lock:
             api = self._require_api()
             zone = self._resolve_zone(api, zone_name)
-            api.playback_control(zone["zone_id"], "play")
+            output_id = self._zone_output_id(zone)
+            api.playback_control(output_id, "play")
+            settled = self._wait_zone_state(api, zone_name, {"playing", "loading"})
+            state = (settled.get("state") or "").lower()
+            if state not in {"playing", "loading"}:
+                return {
+                    "status": "error",
+                    "message": f"Play queue did not start on {zone.get('display_name')} (state={state or 'unknown'})",
+                    "zone": zone.get("display_name"),
+                    "state": state or settled.get("state"),
+                }
             return {
                 "status": "success",
                 "message": f"Play queue on {zone.get('display_name')}",
                 "zone": zone.get("display_name"),
-                "state": "playing",
+                "state": state,
             }
 
     def list_playlists(self) -> Dict[str, Any]:
@@ -490,15 +603,22 @@ class RoonService:
             api = self._require_api()
             zone = self._resolve_zone(api, zone_name)
             zone_id = zone["zone_id"]
+            output_id = self._zone_output_id(zone)
+            # Browse targets can be zone or output; try both.
             matched = self._play_playlist_hierarchy(api, zone_id, playlist_name)
             if not matched:
+                matched = self._play_playlist_hierarchy(api, output_id, playlist_name)
+            if not matched:
                 # Fallback through generic browse path used by Home Assistant.
-                for path in (
-                    ["Playlists", playlist_name],
-                    ["Playlists", playlist_name.strip()],
-                ):
-                    if api.play_media(zone_id, path, action="Play Now", report_error=False):
-                        matched = playlist_name
+                for target in (zone_id, output_id):
+                    for path in (
+                        ["Playlists", playlist_name],
+                        ["Playlists", playlist_name.strip()],
+                    ):
+                        if api.play_media(target, path, action="Play Now", report_error=False):
+                            matched = playlist_name
+                            break
+                    if matched:
                         break
             if not matched:
                 available = self._list_playlist_titles(api, zone_id)[:12]
@@ -508,14 +628,35 @@ class RoonService:
                     "zone": zone.get("display_name"),
                     "available_playlists": available,
                 }
-            api.repeat(zone_id, "loop")
-            api.shuffle(zone_id, False)
+            try:
+                api.repeat(output_id, "loop")
+                api.shuffle(output_id, False)
+            except Exception:
+                logger.exception("Failed to set loop/shuffle after playlist play")
+            settled = self._wait_zone_state(api, zone_name, {"playing", "loading"})
+            state = (settled.get("state") or "").lower()
+            if state not in {"playing", "loading"}:
+                # Last resort: explicit transport play on the output.
+                api.playback_control(output_id, "play")
+                settled = self._wait_zone_state(api, zone_name, {"playing", "loading"})
+                state = (settled.get("state") or "").lower()
+            if state not in {"playing", "loading"}:
+                return {
+                    "status": "error",
+                    "message": (
+                        f"Playlist '{matched}' selected but Bedroom did not start "
+                        f"(state={state or 'unknown'})"
+                    ).replace("Bedroom", zone.get("display_name") or zone_name),
+                    "zone": zone.get("display_name"),
+                    "playlist": matched,
+                    "state": state or settled.get("state"),
+                }
             return {
                 "status": "success",
                 "message": f"Playing playlist '{matched}' on {zone.get('display_name')}",
                 "zone": zone.get("display_name"),
                 "playlist": matched,
-                "state": "playing",
+                "state": state,
             }
 
     def _list_playlist_titles(self, api, zone_id: str) -> List[str]:
@@ -649,38 +790,54 @@ class RoonService:
         with self._lock:
             api = self._require_api()
             zone = self._resolve_zone(api, zone_name)
-            api.playback_control(zone["zone_id"], "pause")
+            output_id = self._zone_output_id(zone)
+            api.playback_control(output_id, "pause")
+            settled = self._wait_zone_state(api, zone_name, {"paused", "stopped"})
+            state = (settled.get("state") or "paused").lower()
             return {
                 "status": "success",
                 "message": f"Paused {zone.get('display_name')}",
                 "zone": zone.get("display_name"),
-                "state": "paused",
+                "state": state,
             }
 
     def stop(self, zone_name: str) -> Dict[str, Any]:
         with self._lock:
             api = self._require_api()
             zone = self._resolve_zone(api, zone_name)
-            api.playback_control(zone["zone_id"], "stop")
+            output_id = self._zone_output_id(zone)
+            api.playback_control(output_id, "stop")
             self._cancel_sleep_timer_locked(zone.get("display_name") or zone_name)
+            settled = self._wait_zone_state(api, zone_name, {"stopped", "paused"})
+            state = (settled.get("state") or "stopped").lower()
             return {
                 "status": "success",
                 "message": f"Stopped {zone.get('display_name')}",
                 "zone": zone.get("display_name"),
-                "state": "stopped",
+                "state": state,
             }
 
     def playpause(self, zone_name: str) -> Dict[str, Any]:
         with self._lock:
             api = self._require_api()
             zone = self._resolve_zone(api, zone_name)
+            output_id = self._zone_output_id(zone)
             state = (zone.get("state") or "").lower()
             if state == "playing":
-                api.playback_control(zone["zone_id"], "pause")
-                new_state = "paused"
+                api.playback_control(output_id, "pause")
+                settled = self._wait_zone_state(api, zone_name, {"paused", "stopped"})
+                new_state = (settled.get("state") or "paused").lower()
             else:
-                api.playback_control(zone["zone_id"], "play")
-                new_state = "playing"
+                api.playback_control(output_id, "play")
+                settled = self._wait_zone_state(api, zone_name, {"playing", "loading"})
+                new_state = (settled.get("state") or "").lower()
+                if new_state not in {"playing", "loading"}:
+                    return {
+                        "status": "error",
+                        "message": f"Play did not start on {zone.get('display_name')}",
+                        "zone": zone.get("display_name"),
+                        "state": new_state or settled.get("state"),
+                    }
             return {
                 "status": "success",
                 "message": f"{new_state.title()} {zone.get('display_name')}",
