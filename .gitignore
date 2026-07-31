@@ -58,3 +58,4 @@ config/garage_config.yaml
 config/vision_checks.yaml
 config/visual_check_private/
 config/ring_client_status.json
+config/roon_config.yaml
