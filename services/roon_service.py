@@ -353,12 +353,24 @@ class RoonService:
         with self._lock:
             status = dict(self._pair_status)
             if self._api and self._api.token:
+                self._save_auth(
+                    {
+                        "token": self._api.token,
+                        "core_id": self._api.core_id,
+                        "core_name": self._api.core_name,
+                        "host": getattr(self._api, "host", status.get("host")),
+                        "port": getattr(self._api, "port", status.get("port")) or 9330,
+                    }
+                )
                 status.update(
                     {
                         "authorized": True,
                         "core_name": self._api.core_name,
                         "core_id": self._api.core_id,
-                        "status": status.get("status") if status.get("status") == "waiting" else "authorized",
+                        "status": "authorized",
+                        "message": f"Paired with {self._api.core_name}",
+                        "host": getattr(self._api, "host", status.get("host")),
+                        "port": getattr(self._api, "port", status.get("port")) or 9330,
                     }
                 )
             return status
