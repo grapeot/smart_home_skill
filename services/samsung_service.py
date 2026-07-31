@@ -1,8 +1,10 @@
 import asyncio
+import base64
 import json
 import logging
 import os
 import ssl
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional
 
@@ -10,13 +12,10 @@ import websockets
 
 logger = logging.getLogger(__name__)
 
-# Default application name shown on the TV pairing prompt and in the allowed-devices list.
 DEFAULT_APP_NAME = "SmartHome"
-# REST endpoint path on the TV; port 8002 (wss) also serves this over https.
 REST_DEVICE_INFO = "/api/v2/"
 WS_CHANNEL = "/api/v2/channels/samsung.remote.control"
 DEFAULT_PORT = 8002
-# Keys take effect with several seconds of latency on QN900C; give the TV time before re-querying.
 POWER_SETTLE_SECONDS = 3
 
 
@@ -30,13 +29,17 @@ class SamsungService:
 
     def __init__(self):
         self._host: Optional[str] = os.getenv("SAMSUNG_TV_HOST")
-        self._port: int = int(os.getenv("SAMSUNG_TV_PORT", str(DEFAULT_PORT)))
+        try:
+            self._port: int = int(os.getenv("SAMSUNG_TV_PORT", str(DEFAULT_PORT)))
+        except (ValueError, TypeError):
+            self._port = DEFAULT_PORT
         self._app_name: str = os.getenv("SAMSUNG_TV_APP_NAME", DEFAULT_APP_NAME)
-        # Token file lives in gitignored data/ by default.
         data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
         self._token_file: str = os.getenv(
             "SAMSUNG_TV_TOKEN_FILE", os.path.join(data_dir, "samsung_tv_ws_token.txt")
         )
+        # Serialize power operations to prevent concurrent toggle races.
+        self._power_lock: asyncio.Lock = asyncio.Lock()
 
     @property
     def configured(self) -> bool:
@@ -51,10 +54,9 @@ class SamsungService:
             return None
 
     def _ws_url(self, token: str) -> str:
-        import base64
-
         name_b64 = base64.b64encode(self._app_name.encode()).decode()
-        return f"wss://{self._host}:{self._port}{WS_CHANNEL}?name={name_b64}&token={token}"
+        params = urllib.parse.urlencode({"name": name_b64, "token": token})
+        return f"wss://{self._host}:{self._port}{WS_CHANNEL}?{params}"
 
     def _ssl_context(self) -> ssl.SSLContext:
         ctx = ssl.create_default_context()
@@ -78,8 +80,14 @@ class SamsungService:
         ctx = self._ssl_context()
         try:
             async with websockets.connect(url, ssl=ctx, open_timeout=10) as ws:
-                # Consume the initial ms.channel.connect frame.
-                await asyncio.wait_for(ws.recv(), timeout=5)
+                # Validate the handshake frame; reject unauthorized/timeout.
+                raw = await asyncio.wait_for(ws.recv(), timeout=5)
+                frame = json.loads(raw)
+                event = frame.get("event", "")
+                if event != "ms.channel.connect":
+                    if "unauthorized" in event or "timeOut" in event:
+                        return {"status": "error", "message": f"TV rejected connection: {event}"}
+                    return {"status": "error", "message": f"Unexpected handshake: {event}"}
                 payload = json.dumps(
                     {
                         "method": "ms.remote.control",
@@ -115,6 +123,10 @@ class SamsungService:
         except Exception:
             return None
 
+    async def _power_state_async(self) -> Optional[str]:
+        """Non-blocking wrapper around _rest_power_state for use in async contexts."""
+        return await asyncio.to_thread(self._rest_power_state)
+
     def get_status(self) -> Dict[str, Any]:
         if not self._host:
             return {"configured": False}
@@ -124,32 +136,42 @@ class SamsungService:
         power = self._rest_power_state()
         if power is None:
             return {"configured": True, "error": "TV unreachable"}
-        # Empty string is a transient state right after power commands; treat as unknown.
         is_on = power == "on" if power else None
         return {
             "configured": True,
             "is_on": is_on,
-            # Local WS protocol does not expose current volume or mute state.
             "volume": None,
             "muted": None,
         }
 
     async def power_on(self) -> Dict[str, Any]:
-        # KEY_POWER is a toggle; only send if currently off.
-        if self.get_status().get("is_on") is True:
-            return {"status": "success", "message": "already on"}
-        result = await self._send_key("KEY_POWER")
-        if result.get("status") == "success":
-            await asyncio.sleep(POWER_SETTLE_SECONDS)
-        return result
+        async with self._power_lock:
+            power = await self._power_state_async()
+            if power == "on":
+                return {"status": "success", "message": "already on"}
+            if power is None:
+                return {"status": "error", "message": "TV unreachable"}
+            # power == "standby" or transient "" — safe to send toggle.
+            result = await self._send_key("KEY_POWER")
+            if result.get("status") == "success":
+                await asyncio.sleep(POWER_SETTLE_SECONDS)
+            return result
 
     async def power_off(self) -> Dict[str, Any]:
-        if self.get_status().get("is_on") is False:
-            return {"status": "success", "message": "already off"}
-        result = await self._send_key("KEY_POWER")
-        if result.get("status") == "success":
-            await asyncio.sleep(POWER_SETTLE_SECONDS)
-        return result
+        async with self._power_lock:
+            power = await self._power_state_async()
+            if power == "standby":
+                return {"status": "success", "message": "already off"}
+            if power is None:
+                return {"status": "error", "message": "TV unreachable"}
+            if not power:
+                # Transient empty string — cannot determine state safely.
+                return {"status": "error", "message": "TV state unknown (transient)"}
+            # power == "on" — safe to send toggle.
+            result = await self._send_key("KEY_POWER")
+            if result.get("status") == "success":
+                await asyncio.sleep(POWER_SETTLE_SECONDS)
+            return result
 
     async def toggle_power(self) -> Dict[str, Any]:
         return await self._send_key("KEY_POWER")

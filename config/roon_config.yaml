@@ -1,0 +1,7 @@
+core_host: 192.168.180.128
+core_port: 9330
+extension_id: com.grapeot.smart-home-roon
+display_name: Smart Home Roon
+display_version: "1.0.0"
+publisher: grapeot
+email: local@invalid
