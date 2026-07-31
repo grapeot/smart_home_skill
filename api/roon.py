@@ -39,6 +39,14 @@ async def list_zones():
     return result
 
 
+@router.get("/playlists", summary="List Roon playlists")
+async def list_playlists():
+    result = await asyncio.to_thread(roon_service.list_playlists)
+    if result.get("status") == "error":
+        raise HTTPException(status_code=503, detail=result.get("message") or "Roon unavailable")
+    return result
+
+
 @router.post(
     "/pair/start",
     response_model=RoonPairStatus,

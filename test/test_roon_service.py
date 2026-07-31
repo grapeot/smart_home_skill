@@ -1,17 +1,10 @@
 import json
 import threading
 import time
-from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
-from services.kids_music_service import KidsMusicService
 from services.roon_service import RoonService
-
-
-class FakeZone(dict):
-    pass
 
 
 class FakeRoonApi:
@@ -34,7 +27,6 @@ class FakeRoonApi:
         }
         self.calls = []
         if token is None:
-            # Simulate user enabling shortly after connect.
             threading.Thread(target=self._auto_auth, daemon=True).start()
 
     def _auto_auth(self):
@@ -87,8 +79,12 @@ class FakeRoonApi:
 
     def browse_load(self, opts):
         self.calls.append(("browse_load", opts))
-        # After selecting playlist item.
-        if any(c[0] == "browse_browse" and c[1].get("item_key") == "pl1" for c in self.calls):
+        if any(
+            c[0] == "browse_browse"
+            and isinstance(c[1], dict)
+            and c[1].get("item_key") == "pl1"
+            for c in self.calls
+        ):
             return {"items": [{"title": "Play Now", "hint": "action", "item_key": "act-play"}]}
         return {"items": [{"title": "k-pop", "item_key": "pl1", "hint": "list"}]}
 
@@ -101,23 +97,11 @@ def roon_env(tmp_path, monkeypatch):
         """
 core_host: 127.0.0.1
 core_port: 9330
-kids:
-  zone_name: bedroom
-  playlist_name: k-pop
-  daily_plays: 2
-  unit_minutes: 15
-  timezone: America/Los_Angeles
-  day_boundary_hour: 4
 """
     )
     service = RoonService(config_path=config_path, auth_path=auth_path)
-
     monkeypatch.setattr("roonapi.RoonApi", FakeRoonApi)
-    monkeypatch.setattr(
-        service,
-        "_discover_core",
-        lambda: ("127.0.0.1", 9330),
-    )
+    monkeypatch.setattr(service, "_discover_core", lambda: ("127.0.0.1", 9330))
     return service, auth_path
 
 
@@ -156,13 +140,13 @@ def test_play_playlist_pause_stop_and_sleep_timer(roon_env):
     assert service.zone_state("bedroom")["state"] == "playing"
     assert service.pause("bedroom")["state"] == "paused"
     assert service.play_queue("bedroom")["state"] == "playing"
-    timer = service.set_sleep_timer("bedroom", 1 / 60)  # one second
+    timer = service.set_sleep_timer("bedroom", 1 / 60)
     assert timer["status"] == "success"
     time.sleep(1.2)
     assert service.zone_state("bedroom")["state"] == "stopped"
 
 
-def test_kids_music_quota_and_playpause(tmp_path, roon_env):
+def test_list_playlists(roon_env):
     service, auth_path = roon_env
     auth_path.write_text(
         json.dumps(
@@ -176,35 +160,6 @@ def test_kids_music_quota_and_playpause(tmp_path, roon_env):
         )
     )
     assert service.connect()["status"] == "success"
-    kids = KidsMusicService(db_path=tmp_path / "kids.db", roon=service)
-
-    state = kids.get_state()
-    assert state["remaining_plays"] == 2
-    assert state["can_start"] is True
-
-    started = kids.playpause()
-    assert started["status"] == "success"
-    assert started["action"] == "play"
-    assert started["playing"] is True
-    assert started["sleep_timer_minutes"] == 30
-
-    paused = kids.playpause()
-    assert paused["action"] == "pause"
-    assert paused["playing"] is False
-
-    # Simulate 15 minutes accrued -> one ticket consumed.
-    day = kids._load_day(kids._day_key())
-    day.accrued_play_seconds = 15 * 60
-    day.playing = False
-    kids._save(day)
-    after = kids.tick()
-    assert after["remaining_plays"] == 1
-
-    day = kids._load_day(kids._day_key())
-    day.accrued_play_seconds = 30 * 60
-    kids._save(day)
-    exhausted = kids.tick()
-    assert exhausted["remaining_plays"] == 0
-    denied = kids.playpause()
-    assert denied["status"] == "error"
-    assert denied["action"] == "denied"
+    listed = service.list_playlists()
+    assert listed["status"] == "success"
+    assert "k-pop" in listed["playlists"]

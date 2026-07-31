@@ -76,7 +76,6 @@ class RoonStatus(FlexibleModel):
     host: Optional[str] = None
     zone_count: Optional[int] = None
     zones: Optional[List[RoonZone]] = None
-    kids: Optional[Dict[str, Any]] = None
     pair: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
@@ -97,23 +96,6 @@ class RoonPairStatus(FlexibleModel):
     host: Optional[str] = None
     port: Optional[int] = None
 
-
-class KidsMusicState(FlexibleModel):
-    status: Optional[str] = None
-    message: Optional[str] = None
-    action: Optional[str] = None
-    day_key: Optional[str] = None
-    remaining_plays: Optional[int] = None
-    daily_plays: Optional[int] = None
-    unit_minutes: Optional[int] = None
-    playing: Optional[bool] = None
-    zone: Optional[str] = None
-    playlist: Optional[str] = None
-    accrued_play_seconds: Optional[float] = None
-    seconds_into_current_unit: Optional[float] = None
-    timezone: Optional[str] = None
-    can_start: Optional[bool] = None
-    sleep_timer_minutes: Optional[float] = None
 
 
 class RinnaiStatus(FlexibleModel):

@@ -60,4 +60,3 @@ config/visual_check_private/
 config/ring_client_status.json
 config/roon_config.yaml
 data/roon_auth.json
-data/kids_music.db
