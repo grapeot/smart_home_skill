@@ -11,3 +11,4 @@ APScheduler==3.10.4
 aiorinnai>=0.3.0
 meross-iot>=0.4.10
 jsonschema>=4.22.0
+websockets>=12.0
