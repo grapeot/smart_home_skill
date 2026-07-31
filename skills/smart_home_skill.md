@@ -78,7 +78,7 @@ Read only the JSON result for automation decisions. Do not re-interpret the imag
 2. Private aliases can drift from real config. Double-check ambiguous commands against the private overlay.
 3. macOS Local Network permission can depend on how the service was launched. If local devices are unreachable after restart, verify the Process Launcher path rather than assuming device failure.
 4. `.env` should not be shell-sourced because values can contain spaces.
-5. Samsung TV control uses SmartThings cloud API (not local IR). The token (PAT) expires after 24 hours. If TV commands return auth errors, the token needs regeneration at https://account.smartthings.com/tokens.
+5. Samsung TV control uses the local Tizen WebSocket API (wss://TV_IP:8002). The token is a one-time device-local credential stored in `data/samsung_tv_ws_token.txt`; it does not expire like a SmartThings PAT. First-run pairing requires pressing "Allow" on the TV screen. The TV must be on the same LAN. Volume and mute state are not readable (protocol limitation); `get_status` returns `PowerState` only.
 
 ## Output Style
 
