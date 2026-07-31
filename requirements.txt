@@ -12,4 +12,5 @@ aiorinnai>=0.3.0
 meross-iot>=0.4.10
 jsonschema>=4.22.0
 roonapi==0.1.6
-websocket-client==0.59.0
+websocket-client>=1.4.0
+websockets>=12.0
