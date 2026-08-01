@@ -91,6 +91,7 @@ async def test_meross_toggle_includes_notification(monkeypatch):
     service.device = DummyDevice()
     service._local_ip = "192.0.2.10"
     service._key = "test-key"
+    service._connected = True
 
     def fake_local_request(namespace, method, payload):
         if method == "GET":
