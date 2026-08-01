@@ -93,7 +93,7 @@ Wemo uses private `config/wemo_config.yaml` for stable local addresses. Auto-dis
 
 Rinnai uses cloud credentials and may fail independently of local devices. Aggregate status endpoints isolate device failures instead of failing the whole status request.
 
-Meross garage control uses cloud login only to discover the device and signing key. The actual trigger uses local HTTP `/config` with Meross signatures. Door state is not treated as authoritative when the physical sensor is absent or unreliable.
+Meross garage control uses cloud login to discover the device, signing key, and LAN address, then atomically caches those local connection fields in a gitignored `0600` file. On an internet-offline cold start, the service restores that cache and continues using local HTTP `/config` with Meross signatures. Door state is not treated as authoritative when the physical sensor is absent or unreliable.
 
 Camera snapshots are proxied on demand. Images are not stored by the backend.
 
