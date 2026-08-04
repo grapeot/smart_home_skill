@@ -6,6 +6,10 @@ The project is being reframed from a Hue-oriented dashboard into `smart_home_ski
 
 ## Changelog
 
+### 2026-07-31
+
+- 将 Ring nightly sensor check 调研从 `contexts/thought_review/` 迁入 `docs/ring_nightly_sensor_check_research.md`，使实现建议与现有 Ring spike、nightly visual check 架构放在同一项目内。
+
 ### 2026-07-30
 
 - Replaced Samsung TV control from SmartThings cloud PAT to local Tizen WebSocket API (wss://TV_IP:8002). Eliminates the 24-hour PAT expiration problem entirely.
