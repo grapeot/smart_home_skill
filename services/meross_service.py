@@ -39,6 +39,7 @@ class MerossService:
         self._cloud_timeout_seconds = float(os.getenv("MEROSS_GARAGE_CLOUD_TIMEOUT_SECONDS", "10"))
         cache_path = Path(os.getenv("MEROSS_GARAGE_LOCAL_CACHE_PATH", "data/meross_garage_local.json"))
         self._cache_path = cache_path if cache_path.is_absolute() else PROJECT_ROOT / cache_path
+        self._expose_controller_telemetry = os.getenv("MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY", "false").lower() in ("1", "true", "yes")
 
     def _reset_connection_state(self) -> None:
         self.device = None
@@ -350,6 +351,12 @@ class MerossService:
                 "verified": verified,
                 "timestamp": datetime.now().isoformat()
             }
+            if self._expose_controller_telemetry:
+                result["backend"] = "meross_local_http"
+                result["previous_state"] = current_state
+                result["reported_state"] = state
+                result["final_state"] = final_state
+                result["executed"] = state.get("execute") if isinstance(state, dict) else None
             if not verified:
                 result["message"] = "Garage command was sent, but final door state was not verified"
             try:

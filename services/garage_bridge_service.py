@@ -50,11 +50,13 @@ def _resource(row: dict) -> dict:
             "status", "door", "action", "target_open", "verified",
             "timestamp", "message", "operation", "door_index",
             "would_dispatch",
+            "backend", "previous_state", "reported_state", "final_state", "executed",
         }
         result = {
-            key: value[:160] if isinstance(value, str) else value
+            key: (value[:160] if isinstance(value, str) else value)
             for key, value in result.items()
-            if key in allowed and isinstance(value, (str, int, float, bool, type(None)))
+            if key in allowed
+            and isinstance(value, (str, int, float, bool, type(None), dict, list))
         }
     return {
         "schema_version": 1,
