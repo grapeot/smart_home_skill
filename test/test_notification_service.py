@@ -64,7 +64,6 @@ def test_send_garage_toggle_uses_resend(monkeypatch):
         {
             "door": 1,
             "target_open": False,
-            "executed": 1,
             "timestamp": "2026-06-25T18:00:00",
         }
     )

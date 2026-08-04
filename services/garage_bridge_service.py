@@ -47,8 +47,8 @@ def _resource(row: dict) -> dict:
     result = json.loads(row["result_json"]) if row.get("result_json") else None
     if isinstance(result, dict):
         allowed = {
-            "status", "door", "action", "backend", "target_open", "verified",
-            "executed", "timestamp", "message", "operation", "door_index",
+            "status", "door", "action", "target_open", "verified",
+            "timestamp", "message", "operation", "door_index",
             "would_dispatch",
         }
         result = {

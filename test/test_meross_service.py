@@ -271,11 +271,8 @@ async def test_toggle_door_uses_local_http_backend(monkeypatch):
     result = await service.toggle_door(1)
 
     assert result["status"] == "success"
-    assert result["backend"] == "meross_local_http"
     assert result["target_open"] is False
     assert result["verified"] is True
-    assert result["final_state"]["open"] == 0
-    assert result["executed"] == 1
     assert calls[:2] == [
         ("Appliance.GarageDoor.State", "GET", {"state": {"channel": 1}}),
         (

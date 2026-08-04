@@ -346,13 +346,8 @@ class MerossService:
                 "status": status,
                 "door": door_index,
                 "action": "toggle",
-                "backend": "meross_local_http",
-                "previous_state": current_state,
                 "target_open": target_open,
-                "reported_state": state,
-                "final_state": final_state,
                 "verified": verified,
-                "executed": state.get("execute") if isinstance(state, dict) else None,
                 "timestamp": datetime.now().isoformat()
             }
             if not verified:
