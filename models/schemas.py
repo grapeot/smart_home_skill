@@ -156,17 +156,108 @@ class NotificationResult(FlexibleModel):
 
 
 class GarageToggleResponse(ActionResult):
-    door: Optional[int] = None
-    action: Optional[str] = None
-    backend: Optional[str] = None
-    previous_state: Optional[Dict[str, Any]] = None
-    target_open: Optional[bool] = None
-    reported_state: Optional[Any] = None
-    final_state: Optional[Dict[str, Any]] = None
-    verified: Optional[bool] = None
-    executed: Optional[int] = None
-    timestamp: Optional[str] = None
-    notification: Optional[NotificationResult] = None
+    door: Optional[int] = Field(
+        None, description="Garage door index that was toggled (1-based)."
+    )
+    action: Optional[str] = Field(
+        None, description="Action type, currently always 'toggle'."
+    )
+    target_open: Optional[bool] = Field(
+        None,
+        description=(
+            "Direction the controller was asked to move the door: True=open, False=close. "
+            "This reflects the desired target computed from the controller's last-known "
+            "command state, not a physical sensor reading. Magnetic door sensors are not "
+            "installed by default, so no field in this response is authoritative evidence "
+            "of the door's physical position. Confirm with a visual check."
+        ),
+    )
+    verified: Optional[bool] = Field(
+        None,
+        description=(
+            "True when the controller's telemetry matched target_open within the "
+            "verification timeout. False (status='triggered_unverified') means the "
+            "command was dispatched but telemetry did not converge in time. "
+            "Not a physical sensor confirmation."
+        ),
+    )
+    timestamp: Optional[str] = Field(
+        None, description="ISO timestamp when the toggle response was assembled."
+    )
+    backend: Optional[str] = Field(
+        None,
+        description=(
+            "Controller backend identifier (e.g. 'meross_local_http'). "
+            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
+            "Not authoritative door state."
+        ),
+    )
+    previous_state: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "Raw controller state dict before the toggle command. "
+            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
+            "Controller telemetry (command direction), not physical sensor data."
+        ),
+    )
+    reported_state: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "Raw controller state dict returned by the SET command. "
+            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
+            "Controller telemetry, not physical sensor data."
+        ),
+    )
+    final_state: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "Raw controller state dict after the verification wait. "
+            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
+            "Controller telemetry, not physical sensor data."
+        ),
+    )
+    executed: Optional[int] = Field(
+        None,
+        description=(
+            "Controller-reported execute flag. "
+            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
+            "Controller telemetry, not physical sensor data."
+        ),
+    )
+    notification: Optional[NotificationResult] = Field(
+        None, description="Optional notification dispatch result if configured."
+    )
+
+
+GarageBridgeStatus = Literal[
+    "accepted",
+    "dispatching",
+    "dry_run",
+    "verified",
+    "unverified",
+    "outcome_unknown",
+    "rejected",
+    "failed_before_dispatch",
+]
+
+
+class GarageBridgeCommandRequest(StrictModel):
+    schema_version: Literal[1]
+    command_id: str = Field(..., pattern=r"^[0-9a-f]{32}$")
+    counter: str = Field(..., pattern=r"^[1-9][0-9]{0,19}$")
+    operation: Literal["garage.toggle"]
+
+
+class GarageBridgeCommandResponse(StrictModel):
+    schema_version: Literal[1] = 1
+    command_id: str
+    request_hash: str
+    mode: Literal["dry_run", "live"]
+    status: GarageBridgeStatus
+    terminal: bool
+    blocks_target: bool
+    result: Optional[Dict[str, Any]] = None
+    error_code: Optional[str] = None
 
 
 class AllStatusResponse(FlexibleModel):

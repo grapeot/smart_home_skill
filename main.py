@@ -25,6 +25,7 @@ from services.scheduler import init_scheduler, shutdown_scheduler
 from services.wemo_schedule import WemoScheduleManager
 from services.action_executor import init_action_executor
 from services.roon_service import roon_service
+from models.database import init_db
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -117,6 +118,7 @@ def _run_uvicorn() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Smart Home Dashboard...")
+    init_db()
     hue_ip = os.getenv("HUE_BRIDGE_IP")
     logger.info(f"Debug: HUE_BRIDGE_IP={hue_ip or '(not configured)'}, .env exists={Path(__file__).parent.joinpath('.env').exists()}")
     hue_service.connect()

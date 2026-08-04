@@ -33,11 +33,13 @@ class MerossService:
         self._device_uuid = None
         self._door_count = 0
         self._connected = False
+        self._door_action_locks: dict[int, asyncio.Lock] = {}
         self._verify_timeout_seconds = float(os.getenv("MEROSS_GARAGE_VERIFY_TIMEOUT_SECONDS", "20"))
         self._verify_poll_interval_seconds = float(os.getenv("MEROSS_GARAGE_VERIFY_POLL_INTERVAL_SECONDS", "2"))
         self._cloud_timeout_seconds = float(os.getenv("MEROSS_GARAGE_CLOUD_TIMEOUT_SECONDS", "10"))
         cache_path = Path(os.getenv("MEROSS_GARAGE_LOCAL_CACHE_PATH", "data/meross_garage_local.json"))
         self._cache_path = cache_path if cache_path.is_absolute() else PROJECT_ROOT / cache_path
+        self._expose_controller_telemetry = os.getenv("MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY", "false").lower() in ("1", "true", "yes", "on")
 
     def _reset_connection_state(self) -> None:
         self.device = None
@@ -276,7 +278,41 @@ class MerossService:
 
             await asyncio.sleep(min(interval, max(0.0, deadline - time.monotonic())))
     
-    async def toggle_door(self, door_index: int) -> dict:
+    async def toggle_door(
+        self,
+        door_index: int,
+        *,
+        bridge_principal_id: str | None = None,
+        bridge_command_id: str | None = None,
+    ) -> dict:
+        lock = self._door_action_locks.setdefault(door_index, asyncio.Lock())
+        async with lock:
+            return await self._toggle_door_locked(
+                door_index,
+                bridge_principal_id=bridge_principal_id,
+                bridge_command_id=bridge_command_id,
+            )
+
+    async def _toggle_door_locked(
+        self,
+        door_index: int,
+        *,
+        bridge_principal_id: str | None,
+        bridge_command_id: str | None,
+    ) -> dict:
+        from models.database import get_garage_bridge_target_blocker
+
+        blocker = get_garage_bridge_target_blocker(
+            door_index,
+            exclude_principal_id=bridge_principal_id,
+            exclude_command_id=bridge_command_id,
+        )
+        if blocker is not None:
+            return {
+                "status": "error",
+                "error_code": "garage_bridge_target_blocked",
+                "message": "Garage action blocked by an unresolved bridge command",
+            }
         device_uuid = self._get_device_uuid()
         if not self._connected:
             return {"status": "error", "message": "Not connected"}
@@ -311,15 +347,16 @@ class MerossService:
                 "status": status,
                 "door": door_index,
                 "action": "toggle",
-                "backend": "meross_local_http",
-                "previous_state": current_state,
                 "target_open": target_open,
-                "reported_state": state,
-                "final_state": final_state,
                 "verified": verified,
-                "executed": state.get("execute") if isinstance(state, dict) else None,
                 "timestamp": datetime.now().isoformat()
             }
+            if self._expose_controller_telemetry:
+                result["backend"] = "meross_local_http"
+                result["previous_state"] = current_state
+                result["reported_state"] = state
+                result["final_state"] = final_state
+                result["executed"] = state.get("execute") if isinstance(state, dict) else None
             if not verified:
                 result["message"] = "Garage command was sent, but final door state was not verified"
             try:

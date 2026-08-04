@@ -137,6 +137,12 @@ RESEND_FROM_EMAIL="Smart Home <notifications@example.com>"
 
 `GARAGE_NOTIFY_RECIPIENTS` supports comma or semicolon separated addresses. `RESEND_API_KEY` may be a resolved key or a 1Password `op://...` secret reference; `start_server.sh` resolves that reference at startup.
 
+## Garage Controller Telemetry
+
+By default the garage toggle response omits raw Meross controller fields (`backend`, `previous_state`, `reported_state`, `final_state`, `executed`). These are controller command-direction state, not physical sensor readings. Most homes do not install magnetic door sensors, so exposing these fields can mislead callers into treating telemetry as authoritative door position. Confirm door state with a visual check.
+
+Set `MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true` in `.env` if you have installed physical sensors or need the raw controller objects for debugging/integration. The OpenAPI schema descriptions on `GarageToggleResponse` document which fields are telemetry-only.
+
 ## Tests
 
 ```bash

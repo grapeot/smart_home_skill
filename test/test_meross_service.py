@@ -4,6 +4,7 @@ import stat
 
 import pytest
 
+from models import database
 from services.meross_service import MerossService
 
 
@@ -270,11 +271,8 @@ async def test_toggle_door_uses_local_http_backend(monkeypatch):
     result = await service.toggle_door(1)
 
     assert result["status"] == "success"
-    assert result["backend"] == "meross_local_http"
     assert result["target_open"] is False
     assert result["verified"] is True
-    assert result["final_state"]["open"] == 0
-    assert result["executed"] == 1
     assert calls[:2] == [
         ("Appliance.GarageDoor.State", "GET", {"state": {"channel": 1}}),
         (
@@ -283,6 +281,55 @@ async def test_toggle_door_uses_local_http_backend(monkeypatch):
             {"state": {"channel": 1, "open": 0, "uuid": "device-uuid"}},
         ),
     ]
+
+
+@pytest.mark.asyncio
+async def test_toggle_door_omits_telemetry_by_default(monkeypatch):
+    service = MerossService()
+    service._expose_controller_telemetry = False
+    service.device = DummyDevice(is_open=True)
+    service._connected = True
+    service._local_ip = "192.0.2.10"
+    service._key = "test-key"
+    service._verify_timeout_seconds = 0.1
+    service._verify_poll_interval_seconds = 0.01
+
+    def fake_local_request(namespace, method, payload):
+        if method == "GET":
+            return {"state": {"channel": 1, "open": 0}}
+        return {"state": {"channel": 1, "open": 1, "execute": 1}}
+
+    monkeypatch.setattr(service, "_local_request", fake_local_request)
+    result = await service.toggle_door(1)
+
+    for key in ("backend", "previous_state", "reported_state", "final_state", "executed"):
+        assert key not in result, f"{key} should be absent when telemetry is disabled"
+
+
+@pytest.mark.asyncio
+async def test_toggle_door_includes_telemetry_when_enabled(monkeypatch):
+    service = MerossService()
+    service._expose_controller_telemetry = True
+    service.device = DummyDevice(is_open=True)
+    service._connected = True
+    service._local_ip = "192.0.2.10"
+    service._key = "test-key"
+    service._verify_timeout_seconds = 0.1
+    service._verify_poll_interval_seconds = 0.01
+
+    def fake_local_request(namespace, method, payload):
+        if method == "GET":
+            return {"state": {"channel": 1, "open": 0}}
+        return {"state": {"channel": 1, "open": 1, "execute": 1}}
+
+    monkeypatch.setattr(service, "_local_request", fake_local_request)
+    result = await service.toggle_door(1)
+
+    assert result["backend"] == "meross_local_http"
+    assert result["executed"] == 1
+    assert isinstance(result["previous_state"], dict)
+    assert isinstance(result["reported_state"], dict)
+    assert isinstance(result["final_state"], dict)
 
 
 @pytest.mark.asyncio
@@ -339,3 +386,24 @@ async def test_toggle_door_works_with_cached_local_configuration(monkeypatch):
     assert result["status"] == "success"
     assert result["verified"] is True
     assert calls[1][2]["state"]["uuid"] == "device-uuid"
+
+
+@pytest.mark.asyncio
+async def test_toggle_door_honors_unresolved_bridge_fence(tmp_path, monkeypatch):
+    original_path = database.DB_PATH
+    database.DB_PATH = tmp_path / "bridge.db"
+    database.init_db()
+    try:
+        database.claim_garage_bridge_command(
+            "bridge", "00112233445566778899aabbccddeeff", "hash", "{}", "1",
+            "garage.toggle", 1, "live",
+        )
+        service = MerossService()
+        service._connected = True
+
+        result = await service.toggle_door(1)
+
+        assert result["status"] == "error"
+        assert result["error_code"] == "garage_bridge_target_blocked"
+    finally:
+        database.DB_PATH = original_path

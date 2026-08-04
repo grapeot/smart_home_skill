@@ -90,6 +90,12 @@ macOS 生产运行建议使用能继承 Local Network 权限的前台启动链�
 
 README 中的 endpoint 表只做导览；实际 contract 以 `/openapi.json` 为准。
 
+## 车库控制器遥测
+
+默认情况下车库 toggle 响应不返回 Meross 控制器的原始字段（`backend`、`previous_state`、`reported_state`、`final_state`、`executed`）。这些是控制器的指令方向状态，不是物理传感器读数。多数家庭没有安装磁传感器，透传这些字段会让调用方误以为遥测就是门的真实位置。确认门状态请用 visual check。
+
+在 `.env` 中设置 `MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true` 可在响应中包含这些原始字段，适用于已安装物理传感器或需要调试/集成的场景。`GarageToggleResponse` 的 OpenAPI schema 描述了哪些字段是遥测专用。
+
 ## 测试
 
 ```bash
