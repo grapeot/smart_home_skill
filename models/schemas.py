@@ -169,6 +169,37 @@ class GarageToggleResponse(ActionResult):
     notification: Optional[NotificationResult] = None
 
 
+GarageBridgeStatus = Literal[
+    "accepted",
+    "dispatching",
+    "dry_run",
+    "verified",
+    "unverified",
+    "outcome_unknown",
+    "rejected",
+    "failed_before_dispatch",
+]
+
+
+class GarageBridgeCommandRequest(StrictModel):
+    schema_version: Literal[1]
+    command_id: str = Field(..., pattern=r"^[0-9a-f]{32}$")
+    counter: str = Field(..., pattern=r"^[1-9][0-9]{0,19}$")
+    operation: Literal["garage.toggle"]
+
+
+class GarageBridgeCommandResponse(StrictModel):
+    schema_version: Literal[1] = 1
+    command_id: str
+    request_hash: str
+    mode: Literal["dry_run", "live"]
+    status: GarageBridgeStatus
+    terminal: bool
+    blocks_target: bool
+    result: Optional[Dict[str, Any]] = None
+    error_code: Optional[str] = None
+
+
 class AllStatusResponse(FlexibleModel):
     hue: Optional[HueStatus] = None
     wemo: Optional[Dict[str, WemoDeviceStatus]] = None
