@@ -39,7 +39,7 @@ class MerossService:
         self._cloud_timeout_seconds = float(os.getenv("MEROSS_GARAGE_CLOUD_TIMEOUT_SECONDS", "10"))
         cache_path = Path(os.getenv("MEROSS_GARAGE_LOCAL_CACHE_PATH", "data/meross_garage_local.json"))
         self._cache_path = cache_path if cache_path.is_absolute() else PROJECT_ROOT / cache_path
-        self._expose_controller_telemetry = os.getenv("MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY", "false").lower() in ("1", "true", "yes")
+        self._expose_controller_telemetry = os.getenv("MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY", "false").lower() in ("1", "true", "yes", "on")
 
     def _reset_connection_state(self) -> None:
         self.device = None

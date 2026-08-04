@@ -284,6 +284,55 @@ async def test_toggle_door_uses_local_http_backend(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_toggle_door_omits_telemetry_by_default(monkeypatch):
+    service = MerossService()
+    service._expose_controller_telemetry = False
+    service.device = DummyDevice(is_open=True)
+    service._connected = True
+    service._local_ip = "192.0.2.10"
+    service._key = "test-key"
+    service._verify_timeout_seconds = 0.1
+    service._verify_poll_interval_seconds = 0.01
+
+    def fake_local_request(namespace, method, payload):
+        if method == "GET":
+            return {"state": {"channel": 1, "open": 0}}
+        return {"state": {"channel": 1, "open": 1, "execute": 1}}
+
+    monkeypatch.setattr(service, "_local_request", fake_local_request)
+    result = await service.toggle_door(1)
+
+    for key in ("backend", "previous_state", "reported_state", "final_state", "executed"):
+        assert key not in result, f"{key} should be absent when telemetry is disabled"
+
+
+@pytest.mark.asyncio
+async def test_toggle_door_includes_telemetry_when_enabled(monkeypatch):
+    service = MerossService()
+    service._expose_controller_telemetry = True
+    service.device = DummyDevice(is_open=True)
+    service._connected = True
+    service._local_ip = "192.0.2.10"
+    service._key = "test-key"
+    service._verify_timeout_seconds = 0.1
+    service._verify_poll_interval_seconds = 0.01
+
+    def fake_local_request(namespace, method, payload):
+        if method == "GET":
+            return {"state": {"channel": 1, "open": 0}}
+        return {"state": {"channel": 1, "open": 1, "execute": 1}}
+
+    monkeypatch.setattr(service, "_local_request", fake_local_request)
+    result = await service.toggle_door(1)
+
+    assert result["backend"] == "meross_local_http"
+    assert result["executed"] == 1
+    assert isinstance(result["previous_state"], dict)
+    assert isinstance(result["reported_state"], dict)
+    assert isinstance(result["final_state"], dict)
+
+
+@pytest.mark.asyncio
 async def test_toggle_door_reports_unverified_when_state_does_not_change(monkeypatch):
     service = MerossService()
     service.device = DummyDevice(is_open=True)

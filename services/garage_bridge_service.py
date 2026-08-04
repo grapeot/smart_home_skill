@@ -46,12 +46,17 @@ def _canonical_request(command) -> tuple[str, str]:
 def _resource(row: dict) -> dict:
     result = json.loads(row["result_json"]) if row.get("result_json") else None
     if isinstance(result, dict):
+        telemetry_keys = {"backend", "previous_state", "reported_state", "final_state", "executed"}
+        expose_telemetry = os.getenv(
+            "MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY", "false"
+        ).lower() in ("1", "true", "yes", "on")
         allowed = {
             "status", "door", "action", "target_open", "verified",
             "timestamp", "message", "operation", "door_index",
             "would_dispatch",
-            "backend", "previous_state", "reported_state", "final_state", "executed",
         }
+        if expose_telemetry:
+            allowed |= telemetry_keys
         result = {
             key: (value[:160] if isinstance(value, str) else value)
             for key, value in result.items()

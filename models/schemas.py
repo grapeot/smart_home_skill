@@ -168,8 +168,8 @@ class GarageToggleResponse(ActionResult):
             "Direction the controller was asked to move the door: True=open, False=close. "
             "This reflects the desired target computed from the controller's last-known "
             "command state, not a physical sensor reading. Magnetic door sensors are not "
-            "installed, so no field in this response is authoritative evidence of the "
-            "door's physical position. Confirm with a visual check."
+            "installed by default, so no field in this response is authoritative evidence "
+            "of the door's physical position. Confirm with a visual check."
         ),
     )
     verified: Optional[bool] = Field(
@@ -200,7 +200,7 @@ class GarageToggleResponse(ActionResult):
             "Controller telemetry (command direction), not physical sensor data."
         ),
     )
-    reported_state: Optional[Any] = Field(
+    reported_state: Optional[Dict[str, Any]] = Field(
         None,
         description=(
             "Raw controller state dict returned by the SET command. "
