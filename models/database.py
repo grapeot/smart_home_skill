@@ -208,6 +208,33 @@ def get_garage_bridge_command(principal_id: str, command_id: str):
         conn.close()
 
 
+def get_garage_bridge_target_blocker(
+    door_index: int,
+    *,
+    exclude_principal_id: str | None = None,
+    exclude_command_id: str | None = None,
+):
+    conn = get_connection()
+    try:
+        try:
+            row = conn.execute(
+                """
+                SELECT * FROM garage_bridge_commands
+                WHERE door_index = ? AND blocks_target = 1
+                  AND NOT (principal_id = ? AND command_id = ?)
+                LIMIT 1
+                """,
+                (door_index, exclude_principal_id or "", exclude_command_id or ""),
+            ).fetchone()
+        except sqlite3.OperationalError as exc:
+            if "no such table" not in str(exc):
+                raise
+            return None
+        return dict(row) if row is not None else None
+    finally:
+        conn.close()
+
+
 def update_garage_bridge_command(
     principal_id: str,
     command_id: str,

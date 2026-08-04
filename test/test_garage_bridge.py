@@ -94,7 +94,11 @@ def test_live_duplicate_dispatches_exactly_once(mock_toggle, monkeypatch):
     assert duplicate.status_code == 200
     assert first.json()["status"] == "verified"
     assert first.json() == duplicate.json()
-    mock_toggle.assert_awaited_once_with(1)
+    mock_toggle.assert_awaited_once_with(
+        1,
+        bridge_principal_id="test-xiao",
+        bridge_command_id="00112233445566778899aabbccddeeff",
+    )
 
 
 @patch("services.garage_bridge_service.meross_service.toggle_door", new_callable=AsyncMock)
@@ -114,4 +118,8 @@ def test_live_timeout_becomes_unknown_and_blocks_another_action(mock_toggle, mon
     assert first.json()["blocks_target"] is True
     assert duplicate.json() == first.json()
     assert second.status_code == 409
-    mock_toggle.assert_awaited_once_with(1)
+    mock_toggle.assert_awaited_once_with(
+        1,
+        bridge_principal_id="test-xiao",
+        bridge_command_id="00112233445566778899aabbccddeeff",
+    )

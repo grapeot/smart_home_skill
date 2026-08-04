@@ -44,6 +44,18 @@ def _canonical_request(command) -> tuple[str, str]:
 
 
 def _resource(row: dict) -> dict:
+    result = json.loads(row["result_json"]) if row.get("result_json") else None
+    if isinstance(result, dict):
+        allowed = {
+            "status", "door", "action", "backend", "target_open", "verified",
+            "executed", "timestamp", "message", "operation", "door_index",
+            "would_dispatch",
+        }
+        result = {
+            key: value[:160] if isinstance(value, str) else value
+            for key, value in result.items()
+            if key in allowed and isinstance(value, (str, int, float, bool, type(None)))
+        }
     return {
         "schema_version": 1,
         "command_id": row["command_id"],
@@ -52,7 +64,7 @@ def _resource(row: dict) -> dict:
         "status": row["status"],
         "terminal": bool(row["terminal"]),
         "blocks_target": bool(row["blocks_target"]),
-        "result": json.loads(row["result_json"]) if row.get("result_json") else None,
+        "result": result,
         "error_code": row.get("error_code"),
     }
 
@@ -107,7 +119,11 @@ async def submit_command(command) -> tuple[dict, bool]:
         blocks_target=True,
     )
     try:
-        result = await meross_service.toggle_door(door_index)
+        result = await meross_service.toggle_door(
+            door_index,
+            bridge_principal_id=principal,
+            bridge_command_id=command.command_id,
+        )
     except Exception as exc:
         result = {"status": "error", "message": str(exc)}
 

@@ -4,6 +4,7 @@ import stat
 
 import pytest
 
+from models import database
 from services.meross_service import MerossService
 
 
@@ -339,3 +340,24 @@ async def test_toggle_door_works_with_cached_local_configuration(monkeypatch):
     assert result["status"] == "success"
     assert result["verified"] is True
     assert calls[1][2]["state"]["uuid"] == "device-uuid"
+
+
+@pytest.mark.asyncio
+async def test_toggle_door_honors_unresolved_bridge_fence(tmp_path, monkeypatch):
+    original_path = database.DB_PATH
+    database.DB_PATH = tmp_path / "bridge.db"
+    database.init_db()
+    try:
+        database.claim_garage_bridge_command(
+            "bridge", "00112233445566778899aabbccddeeff", "hash", "{}", "1",
+            "garage.toggle", 1, "live",
+        )
+        service = MerossService()
+        service._connected = True
+
+        result = await service.toggle_door(1)
+
+        assert result["status"] == "error"
+        assert result["error_code"] == "garage_bridge_target_blocked"
+    finally:
+        database.DB_PATH = original_path

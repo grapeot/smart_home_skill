@@ -33,6 +33,7 @@ class MerossService:
         self._device_uuid = None
         self._door_count = 0
         self._connected = False
+        self._door_action_locks: dict[int, asyncio.Lock] = {}
         self._verify_timeout_seconds = float(os.getenv("MEROSS_GARAGE_VERIFY_TIMEOUT_SECONDS", "20"))
         self._verify_poll_interval_seconds = float(os.getenv("MEROSS_GARAGE_VERIFY_POLL_INTERVAL_SECONDS", "2"))
         self._cloud_timeout_seconds = float(os.getenv("MEROSS_GARAGE_CLOUD_TIMEOUT_SECONDS", "10"))
@@ -276,7 +277,41 @@ class MerossService:
 
             await asyncio.sleep(min(interval, max(0.0, deadline - time.monotonic())))
     
-    async def toggle_door(self, door_index: int) -> dict:
+    async def toggle_door(
+        self,
+        door_index: int,
+        *,
+        bridge_principal_id: str | None = None,
+        bridge_command_id: str | None = None,
+    ) -> dict:
+        lock = self._door_action_locks.setdefault(door_index, asyncio.Lock())
+        async with lock:
+            return await self._toggle_door_locked(
+                door_index,
+                bridge_principal_id=bridge_principal_id,
+                bridge_command_id=bridge_command_id,
+            )
+
+    async def _toggle_door_locked(
+        self,
+        door_index: int,
+        *,
+        bridge_principal_id: str | None,
+        bridge_command_id: str | None,
+    ) -> dict:
+        from models.database import get_garage_bridge_target_blocker
+
+        blocker = get_garage_bridge_target_blocker(
+            door_index,
+            exclude_principal_id=bridge_principal_id,
+            exclude_command_id=bridge_command_id,
+        )
+        if blocker is not None:
+            return {
+                "status": "error",
+                "error_code": "garage_bridge_target_blocked",
+                "message": "Garage action blocked by an unresolved bridge command",
+            }
         device_uuid = self._get_device_uuid()
         if not self._connected:
             return {"status": "error", "message": "Not connected"}
