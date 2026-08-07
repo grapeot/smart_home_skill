@@ -298,14 +298,16 @@ export function ControlTab() {
                     {garageImageError}
                   </div>
                 ) : (
-                  <a href={garageSnapshotUrl} target="_blank" rel="noreferrer">
-                    <img
-                      src={garageStreamUrl}
-                      alt={garageCamera.name}
-                      className="aspect-video w-full object-cover"
-                      onError={() => setGarageImageError('Failed to load garage stream')}
-                    />
-                  </a>
+                  <div className="relative aspect-video bg-gray-100">
+                    <a href={garageSnapshotUrl} target="_blank" rel="noreferrer">
+                      <img
+                        src={garageStreamUrl}
+                        alt={garageCamera.name}
+                        className="w-full h-full object-fill"
+                        onError={() => setGarageImageError('Failed to load garage stream')}
+                      />
+                    </a>
+                  </div>
                 )}
               </div>
             )}
