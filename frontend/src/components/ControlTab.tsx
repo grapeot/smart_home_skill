@@ -16,10 +16,8 @@ function sensorState(device: RingSensorStatus): string {
 
 export function ControlTab() {
   const { status, loading, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage, refreshRing, toggleSamsungTV } = useDeviceStore();
-  const { cameras, getSnapshotUrl } = useCameras();
+  const { cameras, getSnapshotUrl, getStreamUrl } = useCameras();
   const [wemoLoading, setWemoLoading] = useState(false);
-  const [garageImageKey, setGarageImageKey] = useState(0);
-  const [garageImageLoading, setGarageImageLoading] = useState(false);
   const [garageImageError, setGarageImageError] = useState<string | null>(null);
   const [contactRefreshing, setContactRefreshing] = useState(false);
 
@@ -74,7 +72,7 @@ export function ControlTab() {
     camera.id.toLowerCase().includes('garage') || camera.name.toLowerCase().includes('garage')
   );
   const garageSnapshotUrl = garageCamera ? getSnapshotUrl(garageCamera.id) : null;
-  const garageSnapshotSrc = garageSnapshotUrl ? `${garageSnapshotUrl}?t=${garageImageKey}` : null;
+  const garageStreamUrl = garageCamera ? getStreamUrl(garageCamera.id) : null;
   const garageStatus = status?.garage;
   const garageDoors = garageStatus
     ? Array.from({ length: Math.min(garageStatus.door_count, 2) }, (_, i) => {
@@ -85,12 +83,6 @@ export function ControlTab() {
   const contactSensors = (status?.ring?.locations ?? [])
     .flatMap(location => location.devices ?? [])
     .filter(isContactSensor);
-
-  const handleGarageRefresh = () => {
-    setGarageImageError(null);
-    setGarageImageLoading(true);
-    setGarageImageKey(key => key + 1);
-  };
 
   const handleContactRefresh = async () => {
     setContactRefreshing(true);
@@ -289,7 +281,7 @@ export function ControlTab() {
                 </button>
               ))}
             </div>
-            {garageCamera && garageSnapshotUrl && garageSnapshotSrc && (
+            {garageCamera && garageStreamUrl && garageSnapshotUrl && (
               <div className="overflow-hidden rounded-lg border border-gray-100 bg-gray-100">
                 <div className="flex items-center justify-between border-b border-gray-200 bg-white px-3 py-2">
                   <a
@@ -300,16 +292,6 @@ export function ControlTab() {
                   >
                     {garageCamera.name}
                   </a>
-                  <button
-                    onClick={handleGarageRefresh}
-                    disabled={garageImageLoading}
-                    className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 disabled:cursor-wait disabled:opacity-75"
-                  >
-                    {garageImageLoading && (
-                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-blue-200 border-t-blue-500"></span>
-                    )}
-                    {garageImageLoading ? 'Loading' : 'Refresh'}
-                  </button>
                 </div>
                 {garageImageError ? (
                   <div className="flex aspect-video items-center justify-center px-4 text-center text-sm text-red-500">
@@ -318,14 +300,10 @@ export function ControlTab() {
                 ) : (
                   <a href={garageSnapshotUrl} target="_blank" rel="noreferrer">
                     <img
-                      src={garageSnapshotSrc}
+                      src={garageStreamUrl}
                       alt={garageCamera.name}
                       className="aspect-video w-full object-cover"
-                      onLoad={() => setGarageImageLoading(false)}
-                      onError={() => {
-                        setGarageImageLoading(false);
-                        setGarageImageError('Failed to load garage snapshot');
-                      }}
+                      onError={() => setGarageImageError('Failed to load garage stream')}
                     />
                   </a>
                 )}

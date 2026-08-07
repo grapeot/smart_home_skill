@@ -3,7 +3,7 @@ import { useState } from 'react';
 interface CameraCardProps {
   name: string;
   id: string;
-  snapshotUrl: string;
+  streamUrl: string;
   loading: boolean;
   error: string | null;
   onClick: () => void;
@@ -12,18 +12,16 @@ interface CameraCardProps {
 
 export function CameraCard({ 
   name, 
-  snapshotUrl, 
-  loading, 
-  error, 
+  streamUrl, 
   onClick,
-  onRefresh 
 }: CameraCardProps) {
-  const [imgKey, setImgKey] = useState(0);
+  const [streamKey, setStreamKey] = useState(0);
+  const [streamError, setStreamError] = useState(false);
 
-  const handleRefresh = (e: React.MouseEvent) => {
+  const handleRetry = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setImgKey(key => key + 1);
-    onRefresh();
+    setStreamError(false);
+    setStreamKey(key => key + 1);
   };
 
   return (
@@ -33,25 +31,14 @@ export function CameraCard({
     >
       <div className="p-3 border-b flex justify-between items-center">
         <h3 className="font-medium text-gray-800">{name}</h3>
-        <button
-          onClick={handleRefresh}
-          className="text-sm px-2 py-1 text-blue-500 hover:bg-blue-50 rounded"
-        >
-          Refresh
-        </button>
       </div>
       <div className="relative aspect-video bg-gray-100">
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-            <div className="text-gray-400">Loading...</div>
-          </div>
-        )}
-        {error && (
+        {streamError && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
             <div className="text-center text-red-400">
-              <p className="text-sm">{error}</p>
+              <p className="text-sm">Stream failed</p>
               <button 
-                onClick={handleRefresh}
+                onClick={handleRetry}
                 className="mt-2 text-sm text-blue-500"
               >
                 Retry
@@ -60,12 +47,11 @@ export function CameraCard({
           </div>
         )}
         <img
-          key={imgKey}
-          src={`${snapshotUrl}?t=${imgKey}`}
+          key={streamKey}
+          src={`${streamUrl}?t=${streamKey}`}
           alt={name}
-          className={`w-full h-full object-cover ${loading || error ? 'opacity-0' : 'opacity-100'}`}
-          onLoad={() => {}}
-          onError={() => {}}
+          className={`w-full h-full object-cover ${streamError ? 'hidden' : ''}`}
+          onError={() => setStreamError(true)}
         />
       </div>
       <div className="p-2 text-center text-sm text-gray-500 border-t">

@@ -55,6 +55,7 @@ export function useCameras() {
   };
 
   const getSnapshotUrl = (id: string) => `/api/cameras/snapshot/${encodeURIComponent(id)}`;
+  const getStreamUrl = (id: string) => `/api/cameras/stream/${encodeURIComponent(id)}`;
 
   return {
     cameras,
@@ -64,6 +65,7 @@ export function useCameras() {
     refreshAll,
     setCameraState,
     getSnapshotUrl,
+    getStreamUrl,
     refetch: fetchCameras
   };
 }

@@ -4,7 +4,7 @@ import { CameraCard } from './CameraCard';
 import { CameraModal } from './CameraModal';
 
 export function CamerasTab() {
-  const { cameras, states, loading, error, refreshAll, getSnapshotUrl } = useCameras();
+  const { cameras, states, loading, error, refreshAll, getSnapshotUrl, getStreamUrl } = useCameras();
   const [selectedCamera, setSelectedCamera] = useState<{ name: string; id: string } | null>(null);
 
   const handleRefreshAll = () => {
@@ -45,7 +45,7 @@ export function CamerasTab() {
             key={camera.id}
             name={camera.name}
             id={camera.id}
-            snapshotUrl={getSnapshotUrl(camera.id)}
+            streamUrl={getStreamUrl(camera.id)}
             loading={states[camera.id]?.loading ?? false}
             error={states[camera.id]?.error ?? null}
             onClick={() => setSelectedCamera(camera)}
