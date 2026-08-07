@@ -40,7 +40,6 @@ class NotificationService:
         from_email = os.environ["RESEND_FROM_EMAIL"]
         recipients = self._recipients()
         door = result.get("door", "unknown")
-        target_open = result.get("target_open")
         timestamp = result.get("timestamp") or datetime.now().isoformat()
 
         subject = f"Smart Home Garage door {door} toggle triggered"
@@ -57,8 +56,7 @@ class NotificationService:
                 "subject": subject,
                 "html": html_body,
                 "text": (
-                    f"Garage door {door} toggle triggered at {timestamp}. "
-                    f"target_open={target_open}."
+                    f"Garage door {door} toggle triggered at {timestamp}."
                 ),
             },
             timeout=10,
@@ -70,7 +68,7 @@ class NotificationService:
 
     def _render_garage_toggle_html(self, result: dict[str, Any], recipients: list[str]) -> str:
         rows = []
-        for key in ("door", "action", "target_open", "timestamp"):
+        for key in ("door", "action", "timestamp"):
             rows.append(
                 "<tr>"
                 f"<th align='left'>{html.escape(str(key))}</th>"
