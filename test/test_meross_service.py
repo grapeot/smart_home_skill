@@ -252,8 +252,6 @@ async def test_toggle_door_uses_local_http_backend(monkeypatch):
     service._connected = True
     service._local_ip = "192.0.2.10"
     service._key = "test-key"
-    service._verify_timeout_seconds = 0.1
-    service._verify_poll_interval_seconds = 0.01
 
     calls = []
     get_calls = 0
@@ -270,9 +268,9 @@ async def test_toggle_door_uses_local_http_backend(monkeypatch):
 
     result = await service.toggle_door(1)
 
-    assert result["status"] == "success"
-    assert result["target_open"] is False
-    assert result["verified"] is True
+    assert result["status"] == "triggered_unverified"
+    assert "target_open" not in result
+    assert "verified" not in result
     assert calls[:2] == [
         ("Appliance.GarageDoor.State", "GET", {"state": {"channel": 1}}),
         (
@@ -286,13 +284,10 @@ async def test_toggle_door_uses_local_http_backend(monkeypatch):
 @pytest.mark.asyncio
 async def test_toggle_door_omits_telemetry_by_default(monkeypatch):
     service = MerossService()
-    service._expose_controller_telemetry = False
     service.device = DummyDevice(is_open=True)
     service._connected = True
     service._local_ip = "192.0.2.10"
     service._key = "test-key"
-    service._verify_timeout_seconds = 0.1
-    service._verify_poll_interval_seconds = 0.01
 
     def fake_local_request(namespace, method, payload):
         if method == "GET":
@@ -302,59 +297,36 @@ async def test_toggle_door_omits_telemetry_by_default(monkeypatch):
     monkeypatch.setattr(service, "_local_request", fake_local_request)
     result = await service.toggle_door(1)
 
-    for key in ("backend", "previous_state", "reported_state", "final_state", "executed"):
-        assert key not in result, f"{key} should be absent when telemetry is disabled"
+    for key in ("backend", "previous_state", "reported_state", "final_state", "executed",
+                "target_open", "verified"):
+        assert key not in result, f"{key} should be absent"
 
 
 @pytest.mark.asyncio
-async def test_toggle_door_includes_telemetry_when_enabled(monkeypatch):
-    service = MerossService()
-    service._expose_controller_telemetry = True
-    service.device = DummyDevice(is_open=True)
-    service._connected = True
-    service._local_ip = "192.0.2.10"
-    service._key = "test-key"
-    service._verify_timeout_seconds = 0.1
-    service._verify_poll_interval_seconds = 0.01
-
-    def fake_local_request(namespace, method, payload):
-        if method == "GET":
-            return {"state": {"channel": 1, "open": 0}}
-        return {"state": {"channel": 1, "open": 1, "execute": 1}}
-
-    monkeypatch.setattr(service, "_local_request", fake_local_request)
-    result = await service.toggle_door(1)
-
-    assert result["backend"] == "meross_local_http"
-    assert result["executed"] == 1
-    assert isinstance(result["previous_state"], dict)
-    assert isinstance(result["reported_state"], dict)
-    assert isinstance(result["final_state"], dict)
-
-
-@pytest.mark.asyncio
-async def test_toggle_door_reports_unverified_when_state_does_not_change(monkeypatch):
+async def test_toggle_door_does_not_poll_for_state_change(monkeypatch):
     service = MerossService()
     service.device = DummyDevice(is_open=True)
     service._connected = True
     service._local_ip = "192.0.2.10"
     service._key = "test-key"
-    service._verify_timeout_seconds = 0.01
-    service._verify_poll_interval_seconds = 0.01
+
+    get_calls = 0
 
     def fake_local_request(namespace, method, payload):
+        nonlocal get_calls
         if method == "GET":
+            get_calls += 1
             return {"state": {"channel": 1, "open": 1}}
         return {"state": {"channel": 1, "open": 1, "execute": 1}}
 
     monkeypatch.setattr(service, "_local_request", fake_local_request)
-
     result = await service.toggle_door(1)
 
+    # Only one GET (to read current state before toggle), no verification polling
+    assert get_calls == 1
     assert result["status"] == "triggered_unverified"
-    assert result["verified"] is False
-    assert result["target_open"] is False
-    assert "not verified" in result["message"]
+    assert "verified" not in result
+    assert "target_open" not in result
 
 
 @pytest.mark.asyncio
@@ -365,26 +337,20 @@ async def test_toggle_door_works_with_cached_local_configuration(monkeypatch):
     service._local_ip = "192.0.2.10"
     service._key = "test-key"
     service._connected = True
-    service._verify_timeout_seconds = 0.1
-    service._verify_poll_interval_seconds = 0.01
 
     calls = []
-    get_calls = 0
 
     def fake_local_request(namespace, method, payload):
-        nonlocal get_calls
         calls.append((namespace, method, payload))
         if method == "GET":
-            get_calls += 1
-            return {"state": {"channel": 1, "open": 1 if get_calls == 1 else 0}}
+            return {"state": {"channel": 1, "open": 1}}
         return {"state": {"channel": 1, "open": 1, "execute": 1}}
 
     monkeypatch.setattr(service, "_local_request", fake_local_request)
 
     result = await service.toggle_door(1)
 
-    assert result["status"] == "success"
-    assert result["verified"] is True
+    assert result["status"] == "triggered_unverified"
     assert calls[1][2]["state"]["uuid"] == "device-uuid"
 
 

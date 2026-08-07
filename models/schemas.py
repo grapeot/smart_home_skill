@@ -162,67 +162,8 @@ class GarageToggleResponse(ActionResult):
     action: Optional[str] = Field(
         None, description="Action type, currently always 'toggle'."
     )
-    target_open: Optional[bool] = Field(
-        None,
-        description=(
-            "Direction the controller was asked to move the door: True=open, False=close. "
-            "This reflects the desired target computed from the controller's last-known "
-            "command state, not a physical sensor reading. Magnetic door sensors are not "
-            "installed by default, so no field in this response is authoritative evidence "
-            "of the door's physical position. Confirm with a visual check."
-        ),
-    )
-    verified: Optional[bool] = Field(
-        None,
-        description=(
-            "True when the controller's telemetry matched target_open within the "
-            "verification timeout. False (status='triggered_unverified') means the "
-            "command was dispatched but telemetry did not converge in time. "
-            "Not a physical sensor confirmation."
-        ),
-    )
     timestamp: Optional[str] = Field(
         None, description="ISO timestamp when the toggle response was assembled."
-    )
-    backend: Optional[str] = Field(
-        None,
-        description=(
-            "Controller backend identifier (e.g. 'meross_local_http'). "
-            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
-            "Not authoritative door state."
-        ),
-    )
-    previous_state: Optional[Dict[str, Any]] = Field(
-        None,
-        description=(
-            "Raw controller state dict before the toggle command. "
-            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
-            "Controller telemetry (command direction), not physical sensor data."
-        ),
-    )
-    reported_state: Optional[Dict[str, Any]] = Field(
-        None,
-        description=(
-            "Raw controller state dict returned by the SET command. "
-            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
-            "Controller telemetry, not physical sensor data."
-        ),
-    )
-    final_state: Optional[Dict[str, Any]] = Field(
-        None,
-        description=(
-            "Raw controller state dict after the verification wait. "
-            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
-            "Controller telemetry, not physical sensor data."
-        ),
-    )
-    executed: Optional[int] = Field(
-        None,
-        description=(
-            "Controller-reported execute flag. "
-            "Only present when MEROSS_GARAGE_EXPOSE_CONTROLLER_TELEMETRY=true. "
-            "Controller telemetry, not physical sensor data."
-        ),
     )
     notification: Optional[NotificationResult] = Field(
         None, description="Optional notification dispatch result if configured."
