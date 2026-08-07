@@ -50,7 +50,7 @@ export function CameraCard({
           key={streamKey}
           src={`${streamUrl}?t=${streamKey}`}
           alt={name}
-          className={`w-full h-full object-cover ${streamError ? 'hidden' : ''}`}
+          className={`w-full h-full object-fill ${streamError ? 'hidden' : ''}`}
           onError={() => setStreamError(true)}
         />
       </div>
