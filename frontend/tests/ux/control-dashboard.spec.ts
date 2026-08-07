@@ -88,6 +88,13 @@ test.beforeEach(async ({ page }) => {
       body: ONE_PIXEL_PNG,
     });
   });
+
+  await page.route('**/api/cameras/stream/garage**', async route => {
+    await route.fulfill({
+      contentType: 'image/png',
+      body: ONE_PIXEL_PNG,
+    });
+  });
 });
 
 test('control dashboard renders garage camera without blocking on Wemo', async ({ page }) => {
@@ -203,16 +210,13 @@ test('control contact sensors refresh shows loading and updates sensors', async 
   await expect(page.getByText('Fresh Back Door')).toBeVisible();
 });
 
-test('garage snapshot refresh shows loading animation', async ({ page }) => {
+test('garage section renders MJPG stream preview and snapshot link', async ({ page }) => {
   await page.goto('/control');
   await expect(page.getByRole('img', { name: 'Garage' })).toBeVisible();
 
   const garageSection = page.getByRole('heading', { name: /garage doors/i }).locator('..').locator('..');
-  await garageSection.getByRole('button', { name: 'Refresh' }).click();
-
-  await expect(garageSection.getByRole('button', { name: 'Loading' })).toBeVisible();
-  await expect(garageSection.locator('button:has-text("Loading") .animate-spin')).toBeVisible();
-  await expect(garageSection.getByRole('button', { name: 'Refresh' })).toBeVisible();
+  await expect(garageSection.getByRole('link', { name: 'Garage' }).first()).toHaveAttribute('href', '/api/cameras/snapshot/garage');
+  await expect(garageSection.getByRole('img', { name: 'Garage' })).toHaveAttribute('src', '/api/cameras/stream/garage');
 });
 
 test('mobile tab navigation wraps without horizontal overflow', async ({ page }) => {
