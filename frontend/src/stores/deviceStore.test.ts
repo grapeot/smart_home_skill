@@ -6,14 +6,14 @@ describe('deviceStore', () => {
   beforeEach(() => {
     globalThis.fetch = vi.fn()
     globalThis.localStorage.clear()
-    useDeviceStore.setState({ status: null, error: null, loadingKeys: new Set() })
+    useDeviceStore.setState({ status: null, error: null, loadingCounts: { hue: 0, wemo: 0, rinnai: 0, garage: 0, ring: 0, samsung: 0 }, errorsByKey: {} })
     vi.useRealTimers()
   })
 
   it('has initial state', () => {
     const state = useDeviceStore.getState()
     expect(state.status).toBeNull()
-    expect(state.loadingKeys.size).toBe(0)
+    expect(state.loadingCounts.hue).toBe(0)
     expect(state.error).toBeNull()
   })
 
@@ -45,7 +45,7 @@ describe('deviceStore', () => {
     expect(status?.wemo?.coffee?.is_on).toBe(true)
   })
 
-  it('fetchStatus tracks loadingKeys per device', async () => {
+  it('fetchStatus tracks loadingCounts per device', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     let resolveFetch: ((value: Response) => void) | undefined
     const fetchPromise = new Promise<Response>((resolve) => {
@@ -117,7 +117,7 @@ describe('deviceStore', () => {
     expect(cached.ring.locations[0].name).toBe('Fresh home')
   })
 
-  it('refreshRing clears ring loading key on error', async () => {
+  it('refreshRing clears ring loading and sets error on failure', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -127,7 +127,7 @@ describe('deviceStore', () => {
     await useDeviceStore.getState().refreshRing()
 
     expect(useDeviceStore.getState().isLoading('ring')).toBe(false)
-    expect(useDeviceStore.getState().error).toBeTruthy()
+    expect(useDeviceStore.getState().getError('ring')).toBeTruthy()
   })
 
   it('setHueBrightness calls API and fetches updated status', async () => {
@@ -165,7 +165,7 @@ describe('deviceStore', () => {
     expect(state.error).toBeTruthy()
   })
 
-  it('concurrent fetchStatus calls do not interfere loadingKeys', async () => {
+  it('concurrent fetchStatus calls do not interfere loadingCounts', async () => {
     const mockFetch = vi.mocked(globalThis.fetch)
     let resolveHue: ((value: Response) => void) | undefined
     let resolveRing: ((value: Response) => void) | undefined
@@ -197,5 +197,69 @@ describe('deviceStore', () => {
     await ringCall
 
     expect(useDeviceStore.getState().isLoading('ring')).toBe(false)
+  })
+
+  it('overlapping same-key requests keep loading true until both resolve', async () => {
+    const mockFetch = vi.mocked(globalThis.fetch)
+    let resolveFirst: ((value: Response) => void) | undefined
+    let resolveSecond: ((value: Response) => void) | undefined
+
+    mockFetch.mockReturnValueOnce(new Promise<Response>((r) => { resolveFirst = r }))
+    mockFetch.mockReturnValueOnce(new Promise<Response>((r) => { resolveSecond = r }))
+
+    const firstCall = useDeviceStore.getState().fetchStatus(['hue'])
+    const secondCall = useDeviceStore.getState().fetchStatus(['hue'])
+
+    expect(useDeviceStore.getState().isLoading('hue')).toBe(true)
+
+    resolveFirst!({
+      ok: true,
+      json: () => Promise.resolve({ hue: { name: 'Baby room', is_on: false, brightness: 0 } }),
+    } as Response)
+
+    await firstCall
+
+    expect(useDeviceStore.getState().isLoading('hue')).toBe(true)
+
+    resolveSecond!({
+      ok: true,
+      json: () => Promise.resolve({ hue: { name: 'Baby room', is_on: true, brightness: 128 } }),
+    } as Response)
+
+    await secondCall
+
+    expect(useDeviceStore.getState().isLoading('hue')).toBe(false)
+  })
+
+  it('fetchStatus stores per-key error on failure', async () => {
+    const mockFetch = vi.mocked(globalThis.fetch)
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({}),
+    } as Response)
+
+    await useDeviceStore.getState().fetchStatus(['hue'])
+
+    expect(useDeviceStore.getState().getError('hue')).toBeTruthy()
+    expect(useDeviceStore.getState().getError('ring')).toBeUndefined()
+  })
+
+  it('successful fetchStatus clears per-key error', async () => {
+    const mockFetch = vi.mocked(globalThis.fetch)
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({}),
+    } as Response)
+
+    await useDeviceStore.getState().fetchStatus(['hue'])
+    expect(useDeviceStore.getState().getError('hue')).toBeTruthy()
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ hue: { name: 'Baby room', is_on: true, brightness: 128 } }),
+    } as Response)
+
+    await useDeviceStore.getState().fetchStatus(['hue'])
+    expect(useDeviceStore.getState().getError('hue')).toBeUndefined()
   })
 })

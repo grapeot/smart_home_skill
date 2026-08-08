@@ -9,7 +9,7 @@ The project is being reframed from a Hue-oriented dashboard into `smart_home_ski
 ### 2026-08-08
 
 - Control tab: replaced global full-screen spinner with per-section loading spinners. Each device section (Lights, Switches, Samsung TV, Garage, Contact sensors, Water heater) now independently shows a local spinner while its data is loading, instead of blocking the entire tab behind one global spinner. The store's `loading: boolean` was replaced with `loadingKeys: Set<DeviceKey>` + `isLoading(key)` selector so concurrent fetch calls no longer overwrite each other's loading state.
-- Added `ControlTab.test.tsx` (4 tests) and expanded `deviceStore.test.ts` (14 tests) covering per-key loading, concurrent fetch, and error cleanup.
+- Added `ControlTab.test.tsx` (6 tests) and expanded `deviceStore.test.ts` (14 tests) covering per-key loading, same-key concurrency, per-key errors, and error cleanup.
 
 ### 2026-07-31
 

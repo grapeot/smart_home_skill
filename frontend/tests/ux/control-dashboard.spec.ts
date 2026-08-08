@@ -116,7 +116,7 @@ test('control dashboard renders garage camera without blocking on Wemo', async (
   await expect(page.getByText('Back Door')).toBeVisible();
   await expect(page.getByText('Hall Motion')).not.toBeVisible();
 
-  await expect(page.getByText('Loading switches...')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /switches/i }).locator('..').locator('.animate-spin')).toBeVisible();
   await expect(page.getByText('Coffee maker')).toBeVisible();
 });
 
@@ -227,4 +227,96 @@ test('mobile tab navigation wraps without horizontal overflow', async ({ page })
   const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
   expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   await expect(page.getByRole('button', { name: /history/i })).toBeVisible();
+});
+
+test('control dashboard shows per-section spinners independently', async ({ page }) => {
+  await page.route('**/api/status**', async route => {
+    const url = new URL(route.request().url());
+    const devices = url.searchParams.get('devices');
+
+    if (devices === 'ring') {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await route.fulfill({
+        contentType: 'application/json',
+        json: { ring: { configured: true, locations: [{ name: 'Home', devices: [] }] } },
+      });
+      return;
+    }
+
+    if (devices === 'wemo') {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await route.fulfill({
+        contentType: 'application/json',
+        json: { wemo: { coffee: { name: 'coffee', is_on: true } } },
+      });
+      return;
+    }
+
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        hue: { name: 'Baby room', is_on: true, brightness: 128 },
+        rinnai: { is_online: true, set_temperature: 120, outlet_temp: 118, inlet_temp: 65, recirculation_enabled: false },
+        garage: { door_count: 2, available: true, doors: [{ index: 1, label: 'Garage Door Black' }, { index: 2, label: 'Garage Door White' }] },
+      },
+    });
+  });
+
+  await page.goto('/control');
+
+  await expect(page.getByText('Baby room')).toBeVisible({ timeout: 3000 });
+  await expect(page.getByRole('button', { name: 'Garage Door Black' })).toBeVisible({ timeout: 3000 });
+
+  const contactSection = page.getByRole('heading', { name: /contact sensors/i }).locator('..').locator('..');
+  await expect(contactSection.locator('.animate-spin')).toBeVisible({ timeout: 3000 });
+
+  await expect(page.getByText('Baby room')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Garage Door Black' })).toBeVisible();
+});
+
+test('control dashboard shows section error when device fetch fails', async ({ page }) => {
+  await page.route('**/api/status**', async route => {
+    const url = new URL(route.request().url());
+    const devices = url.searchParams.get('devices');
+
+    if (devices === 'ring') {
+      await route.fulfill({
+        contentType: 'application/json',
+        json: { ring: { configured: true, locations: [{ name: 'Home', devices: [] }] } },
+      });
+      return;
+    }
+
+    if (devices === 'wemo') {
+      await route.fulfill({
+        contentType: 'application/json',
+        json: { wemo: { coffee: { name: 'coffee', is_on: true } } },
+      });
+      return;
+    }
+
+    if (devices && devices.includes('rinnai')) {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        json: { error: 'Internal server error' },
+      });
+      return;
+    }
+
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        hue: { name: 'Baby room', is_on: true, brightness: 128 },
+        garage: { door_count: 2, available: true, doors: [{ index: 1, label: 'Garage Door Black' }, { index: 2, label: 'Garage Door White' }] },
+      },
+    });
+  });
+
+  await page.goto('/control');
+
+  await expect(page.getByText('Coffee maker')).toBeVisible({ timeout: 3000 });
+
+  const waterHeaterSection = page.getByRole('heading', { name: /water heater/i }).locator('..').locator('..');
+  await expect(waterHeaterSection.locator('.text-red-600')).toBeVisible({ timeout: 5000 });
 });

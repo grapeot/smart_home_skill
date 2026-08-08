@@ -22,18 +22,22 @@ function SectionSpinner() {
   );
 }
 
+function SectionError({ message }: { message: string }) {
+  return (
+    <div className="px-4 py-3 text-sm text-red-600 bg-red-50 border-b border-red-100">
+      {message}
+    </div>
+  );
+}
+
 export function ControlTab() {
-  const { status, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage, refreshRing, toggleSamsungTV, isLoading } = useDeviceStore();
+  const { status, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage, refreshRing, toggleSamsungTV, isLoading, getError } = useDeviceStore();
   const { cameras, getSnapshotUrl, getStreamUrl } = useCameras();
   const [garageImageError, setGarageImageError] = useState<string | null>(null);
   const [contactRefreshing, setContactRefreshing] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    const fetchWemoStatus = async () => {
-      await fetchStatus(['wemo']);
-      if (cancelled) return;
-    };
+    const fetchWemoStatus = () => { fetchStatus(['wemo']); };
 
     fetchStatus(['hue', 'rinnai', 'garage', 'samsung']);
     fetchStatus(['ring']);
@@ -42,7 +46,6 @@ export function ControlTab() {
     const ringInterval = setInterval(() => fetchStatus(['ring']), 30000);
     const wemoInterval = setInterval(fetchWemoStatus, 30000);
     return () => {
-      cancelled = true;
       clearInterval(fastInterval);
       clearInterval(ringInterval);
       clearInterval(wemoInterval);
@@ -55,6 +58,13 @@ export function ControlTab() {
   const ringLoading = isLoading('ring');
   const garageLoading = isLoading('garage');
   const samsungLoading = isLoading('samsung');
+
+  const hueError = getError('hue');
+  const wemoError = getError('wemo');
+  const rinnaiError = getError('rinnai');
+  const ringError = getError('ring');
+  const garageError = getError('garage');
+  const samsungError = getError('samsung');
 
   const wemoDevices = status?.wemo ? Object.entries(status.wemo) : [];
   const wemoNames: Record<string, string> = {
@@ -112,6 +122,8 @@ export function ControlTab() {
         <div className="p-4">
           {hueLoading && !status?.hue ? (
             <SectionSpinner />
+          ) : hueError && !status?.hue ? (
+            <SectionError message={hueError} />
           ) : (
             <>
               {status?.hue?.error && (
@@ -198,9 +210,12 @@ export function ControlTab() {
           {wemoLoading && wemoDevices.length === 0 && (
             <SectionSpinner />
           )}
-          {!wemoLoading && wemoDevices.length === 0 && (
+          {wemoError && !wemoLoading && wemoDevices.length === 0 && (
+            <SectionError message={wemoError} />
+          )}
+          {!wemoLoading && !wemoError && wemoDevices.length === 0 && (
             <div className="px-4 py-6 text-sm text-gray-500">
-              {error ? 'Unable to load switches.' : 'No switches reported.'}
+              No switches reported.
             </div>
           )}
           {wemoDevices.map(([name, device]) => (
@@ -231,7 +246,17 @@ export function ControlTab() {
       {/* Samsung TV */}
       {samsungLoading && !status?.samsung ? (
         <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h3 className="font-semibold text-gray-900">Samsung TV</h3>
+          </div>
           <SectionSpinner />
+        </section>
+      ) : samsungError && !status?.samsung ? (
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h3 className="font-semibold text-gray-900">Samsung TV</h3>
+          </div>
+          <SectionError message={samsungError} />
         </section>
       ) : status?.samsung?.configured && (
         <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -266,7 +291,23 @@ export function ControlTab() {
       {/* Garage doors */}
       {garageLoading && !status?.garage ? (
         <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-800 flex items-center">
+              <span className="text-xl mr-2">🚗</span>
+              Garage doors
+            </h2>
+          </div>
           <SectionSpinner />
+        </section>
+      ) : garageError && !status?.garage ? (
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-800 flex items-center">
+              <span className="text-xl mr-2">🚗</span>
+              Garage doors
+            </h2>
+          </div>
+          <SectionError message={garageError} />
         </section>
       ) : status?.garage?.available && (
         <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -349,7 +390,10 @@ export function ControlTab() {
           {ringLoading && !status?.ring && (
             <SectionSpinner />
           )}
-          {!ringLoading && !status?.ring && (
+          {ringError && !ringLoading && !status?.ring && (
+            <SectionError message={ringError} />
+          )}
+          {!ringLoading && !ringError && !status?.ring && (
             <div className="px-4 py-3 text-sm text-gray-500">No contact sensors reported.</div>
           )}
           {status?.ring && contactSensors.length === 0 && !status.ring.error && (
@@ -377,16 +421,20 @@ export function ControlTab() {
           <h2 className="text-base font-semibold text-gray-800 flex items-center">
             <span className="text-xl mr-2">🚿</span>
             Water heater
-            <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
-              status?.rinnai?.is_online ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-            }`}>
-              {status?.rinnai?.is_online ? 'Online' : 'Offline'}
-            </span>
+            {status?.rinnai && (
+              <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
+                status?.rinnai?.is_online ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              }`}>
+                {status?.rinnai?.is_online ? 'Online' : 'Offline'}
+              </span>
+            )}
           </h2>
         </div>
         <div className="p-4 space-y-3">
           {rinnaiLoading && !status?.rinnai ? (
             <SectionSpinner />
+          ) : rinnaiError && !status?.rinnai ? (
+            <SectionError message={rinnaiError} />
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3 text-sm">

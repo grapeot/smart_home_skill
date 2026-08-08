@@ -8,7 +8,8 @@ const RING_CACHE_TTL_MS = 60_000;
 
 interface DeviceStore {
   status: DeviceStatus | null;
-  loadingKeys: Set<DeviceKey>;
+  loadingCounts: Record<DeviceKey, number>;
+  errorsByKey: Partial<Record<DeviceKey, string>>;
   error: string | null;
   fetchStatus: (devices?: DeviceKey[]) => Promise<void>;
   refreshRing: () => Promise<void>;
@@ -20,13 +21,28 @@ interface DeviceStore {
   toggleGarage: (doorIndex: number) => Promise<void>;
   toggleSamsungTV: () => Promise<void>;
   isLoading: (key: DeviceKey) => boolean;
+  getError: (key: DeviceKey) => string | undefined;
 }
 
 const API_BASE = '/api';
 
-function removeKeys(set: Set<DeviceKey>, keys: DeviceKey[]): Set<DeviceKey> {
-  const next = new Set(set);
-  for (const k of keys) next.delete(k);
+const ALL_KEYS: DeviceKey[] = ['hue', 'wemo', 'rinnai', 'garage', 'ring', 'samsung'];
+
+function incrementCounts(counts: Record<DeviceKey, number>, keys: DeviceKey[]): Record<DeviceKey, number> {
+  const next = { ...counts };
+  for (const k of keys) next[k] = (next[k] ?? 0) + 1;
+  return next;
+}
+
+function decrementCounts(counts: Record<DeviceKey, number>, keys: DeviceKey[]): Record<DeviceKey, number> {
+  const next = { ...counts };
+  for (const k of keys) next[k] = Math.max(0, (next[k] ?? 0) - 1);
+  return next;
+}
+
+function clearErrors(errors: Partial<Record<DeviceKey, string>>, keys: DeviceKey[]): Partial<Record<DeviceKey, string>> {
+  const next = { ...errors };
+  for (const k of keys) delete next[k];
   return next;
 }
 
@@ -50,16 +66,23 @@ function writeRingCache(ring: RingStatusResponse) {
   }
 }
 
+function emptyCounts(): Record<DeviceKey, number> {
+  return { hue: 0, wemo: 0, rinnai: 0, garage: 0, ring: 0, samsung: 0 };
+}
+
 export const useDeviceStore = create<DeviceStore>((set, get) => ({
   status: null,
-  loadingKeys: new Set<DeviceKey>(),
+  loadingCounts: emptyCounts(),
+  errorsByKey: {},
   error: null,
 
-  isLoading: (key: DeviceKey) => get().loadingKeys.has(key),
+  isLoading: (key: DeviceKey) => (get().loadingCounts[key] ?? 0) > 0,
+
+  getError: (key: DeviceKey) => get().errorsByKey[key],
 
   fetchStatus: async (devices?: DeviceKey[]) => {
-    const keys = devices ?? (['hue', 'wemo', 'rinnai', 'garage', 'ring', 'samsung'] as DeviceKey[]);
-    set((state) => ({ loadingKeys: new Set([...state.loadingKeys, ...keys]) }));
+    const keys = devices?.length ? devices : ALL_KEYS;
+    set((state) => ({ loadingCounts: incrementCounts(state.loadingCounts, keys) }));
     try {
       if (devices?.length === 1 && devices[0] === 'ring') {
         const cachedRing = readRingCache();
@@ -67,7 +90,8 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
           const prev = get().status;
           set((state) => ({
             status: prev ? { ...prev, ring: cachedRing } : { ring: cachedRing },
-            loadingKeys: removeKeys(state.loadingKeys, keys),
+            loadingCounts: decrementCounts(state.loadingCounts, keys),
+            errorsByKey: clearErrors(state.errorsByKey, keys),
             error: null,
           }));
           return;
@@ -81,15 +105,24 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
       if (data.ring) writeRingCache(data.ring);
       const prev = get().status;
       const merged = prev ? { ...prev, ...data } : data;
-      set((state) => ({ status: merged, loadingKeys: removeKeys(state.loadingKeys, keys), error: null }));
+      set((state) => ({
+        status: merged,
+        loadingCounts: decrementCounts(state.loadingCounts, keys),
+        errorsByKey: clearErrors(state.errorsByKey, keys),
+        error: null,
+      }));
     } catch (error) {
-      set((state) => ({ error: String(error), loadingKeys: removeKeys(state.loadingKeys, keys) }));
+      set((state) => ({
+        error: String(error),
+        loadingCounts: decrementCounts(state.loadingCounts, keys),
+        errorsByKey: { ...state.errorsByKey, ...Object.fromEntries(keys.map((k) => [k, String(error)])) },
+      }));
     }
   },
 
   refreshRing: async () => {
     const keys: DeviceKey[] = ['ring'];
-    set((state) => ({ loadingKeys: new Set([...state.loadingKeys, ...keys]) }));
+    set((state) => ({ loadingCounts: incrementCounts(state.loadingCounts, keys) }));
     try {
       const res = await fetch(`${API_BASE}/status?devices=ring`);
       if (!res.ok) throw new Error('Failed to refresh Ring status');
@@ -98,11 +131,16 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
       const prev = get().status;
       set((state) => ({
         status: prev ? { ...prev, ...data } : data,
-        loadingKeys: removeKeys(state.loadingKeys, keys),
+        loadingCounts: decrementCounts(state.loadingCounts, keys),
+        errorsByKey: clearErrors(state.errorsByKey, keys),
         error: null,
       }));
     } catch (error) {
-      set((state) => ({ error: String(error), loadingKeys: removeKeys(state.loadingKeys, keys) }));
+      set((state) => ({
+        error: String(error),
+        loadingCounts: decrementCounts(state.loadingCounts, keys),
+        errorsByKey: { ...state.errorsByKey, ring: String(error) },
+      }));
     }
   },
 
@@ -184,7 +222,6 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
 
   toggleSamsungTV: async () => {
     try {
-      // 乐观更新：立刻翻转前端状态
       const prev = get().status;
       if (prev?.samsung) {
         set({ status: { ...prev, samsung: { ...prev.samsung, is_on: !prev.samsung.is_on } } });
@@ -193,11 +230,9 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
       const res = await fetch(`${API_BASE}/samsung/power/toggle`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.status === 'error') {
-        // 回滚乐观更新
         if (prev?.samsung) set({ status: prev });
         throw new Error(data.message || 'Failed to toggle Samsung TV');
       }
-      // SmartThings 云端有延迟，等 2 秒再刷新真实状态
       await new Promise(resolve => setTimeout(resolve, 2000));
       await get().fetchStatus(['samsung']);
     } catch (error) {

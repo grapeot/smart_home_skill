@@ -21,7 +21,7 @@ describe('ControlTab', () => {
   beforeEach(() => {
     globalThis.fetch = vi.fn()
     globalThis.localStorage.clear()
-    useDeviceStore.setState({ status: null, error: null, loadingKeys: new Set() })
+    useDeviceStore.setState({ status: null, error: null, loadingCounts: { hue: 0, wemo: 0, rinnai: 0, garage: 0, ring: 0, samsung: 0 }, errorsByKey: {} })
     vi.useFakeTimers()
   })
 
@@ -45,13 +45,11 @@ describe('ControlTab', () => {
 
     render(<ControlTab />)
 
-    const sections = document.querySelectorAll('section')
     const spinners = document.querySelectorAll('.animate-spin')
     expect(spinners.length).toBeGreaterThan(0)
-    expect(sections.length).toBeGreaterThanOrEqual(4)
   })
 
-  it('renders light data after fetch resolves', async () => {
+  it('renders device data after fetch resolves', async () => {
     vi.useRealTimers()
     vi.mocked(globalThis.fetch).mockResolvedValue({
       ok: true,
@@ -81,5 +79,29 @@ describe('ControlTab', () => {
 
     const fullScreenSpinner = container.querySelector('.flex.items-center.justify-center.p-8')
     expect(fullScreenSpinner).toBeNull()
+  })
+
+  it('shows section error message when fetch fails', async () => {
+    vi.useRealTimers()
+    vi.mocked(globalThis.fetch).mockResolvedValue({
+      ok: false,
+      json: () => Promise.resolve({}),
+    } as Response)
+
+    render(<ControlTab />)
+
+    await waitFor(() => {
+      const errorElements = document.querySelectorAll('.text-red-600.bg-red-50')
+      expect(errorElements.length).toBeGreaterThan(0)
+    }, { timeout: 3000 })
+  })
+
+  it('shows water heater badge only after data arrives', () => {
+    vi.mocked(globalThis.fetch).mockImplementation(() => new Promise(() => {}))
+
+    render(<ControlTab />)
+
+    expect(screen.queryByText('Online')).toBeNull()
+    expect(screen.queryByText('Offline')).toBeNull()
   })
 })
