@@ -8,7 +8,7 @@ const RING_CACHE_TTL_MS = 60_000;
 
 interface DeviceStore {
   status: DeviceStatus | null;
-  loading: boolean;
+  loadingKeys: Set<DeviceKey>;
   error: string | null;
   fetchStatus: (devices?: DeviceKey[]) => Promise<void>;
   refreshRing: () => Promise<void>;
@@ -19,9 +19,16 @@ interface DeviceStore {
   refreshRinnai: () => Promise<void>;
   toggleGarage: (doorIndex: number) => Promise<void>;
   toggleSamsungTV: () => Promise<void>;
+  isLoading: (key: DeviceKey) => boolean;
 }
 
 const API_BASE = '/api';
+
+function removeKeys(set: Set<DeviceKey>, keys: DeviceKey[]): Set<DeviceKey> {
+  const next = new Set(set);
+  for (const k of keys) next.delete(k);
+  return next;
+}
 
 function readRingCache(): RingStatusResponse | null {
   try {
@@ -45,17 +52,24 @@ function writeRingCache(ring: RingStatusResponse) {
 
 export const useDeviceStore = create<DeviceStore>((set, get) => ({
   status: null,
-  loading: false,
+  loadingKeys: new Set<DeviceKey>(),
   error: null,
 
+  isLoading: (key: DeviceKey) => get().loadingKeys.has(key),
+
   fetchStatus: async (devices?: DeviceKey[]) => {
-    set({ loading: true });
+    const keys = devices ?? (['hue', 'wemo', 'rinnai', 'garage', 'ring', 'samsung'] as DeviceKey[]);
+    set((state) => ({ loadingKeys: new Set([...state.loadingKeys, ...keys]) }));
     try {
       if (devices?.length === 1 && devices[0] === 'ring') {
         const cachedRing = readRingCache();
         if (cachedRing) {
           const prev = get().status;
-          set({ status: prev ? { ...prev, ring: cachedRing } : { ring: cachedRing }, loading: false, error: null });
+          set((state) => ({
+            status: prev ? { ...prev, ring: cachedRing } : { ring: cachedRing },
+            loadingKeys: removeKeys(state.loadingKeys, keys),
+            error: null,
+          }));
           return;
         }
       }
@@ -67,23 +81,28 @@ export const useDeviceStore = create<DeviceStore>((set, get) => ({
       if (data.ring) writeRingCache(data.ring);
       const prev = get().status;
       const merged = prev ? { ...prev, ...data } : data;
-      set({ status: merged, loading: false, error: null });
+      set((state) => ({ status: merged, loadingKeys: removeKeys(state.loadingKeys, keys), error: null }));
     } catch (error) {
-      set({ error: String(error), loading: false });
+      set((state) => ({ error: String(error), loadingKeys: removeKeys(state.loadingKeys, keys) }));
     }
   },
 
   refreshRing: async () => {
-    set({ loading: true });
+    const keys: DeviceKey[] = ['ring'];
+    set((state) => ({ loadingKeys: new Set([...state.loadingKeys, ...keys]) }));
     try {
       const res = await fetch(`${API_BASE}/status?devices=ring`);
       if (!res.ok) throw new Error('Failed to refresh Ring status');
       const data = await res.json();
       if (data.ring) writeRingCache(data.ring);
       const prev = get().status;
-      set({ status: prev ? { ...prev, ...data } : data, loading: false, error: null });
+      set((state) => ({
+        status: prev ? { ...prev, ...data } : data,
+        loadingKeys: removeKeys(state.loadingKeys, keys),
+        error: null,
+      }));
     } catch (error) {
-      set({ error: String(error), loading: false });
+      set((state) => ({ error: String(error), loadingKeys: removeKeys(state.loadingKeys, keys) }));
     }
   },
 

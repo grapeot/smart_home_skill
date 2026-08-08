@@ -6,6 +6,11 @@ The project is being reframed from a Hue-oriented dashboard into `smart_home_ski
 
 ## Changelog
 
+### 2026-08-08
+
+- Control tab: replaced global full-screen spinner with per-section loading spinners. Each device section (Lights, Switches, Samsung TV, Garage, Contact sensors, Water heater) now independently shows a local spinner while its data is loading, instead of blocking the entire tab behind one global spinner. The store's `loading: boolean` was replaced with `loadingKeys: Set<DeviceKey>` + `isLoading(key)` selector so concurrent fetch calls no longer overwrite each other's loading state.
+- Added `ControlTab.test.tsx` (4 tests) and expanded `deviceStore.test.ts` (14 tests) covering per-key loading, concurrent fetch, and error cleanup.
+
 ### 2026-07-31
 
 - 将 Ring nightly sensor check 调研从 `contexts/thought_review/` 迁入 `docs/ring_nightly_sensor_check_research.md`，使实现建议与现有 Ring spike、nightly visual check 架构放在同一项目内。
