@@ -14,22 +14,30 @@ function sensorState(device: RingSensorStatus): string {
   return 'Unknown';
 }
 
+function SectionSpinner() {
+  return (
+    <div className="flex items-center justify-center py-6">
+      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
+    </div>
+  );
+}
+
+function SectionError({ message }: { message: string }) {
+  return (
+    <div className="px-4 py-3 text-sm text-red-600 bg-red-50 border-b border-red-100">
+      {message}
+    </div>
+  );
+}
+
 export function ControlTab() {
-  const { status, loading, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage, refreshRing, toggleSamsungTV } = useDeviceStore();
+  const { status, error, fetchStatus, toggleHue, setHueBrightness, toggleWemo, circulateRinnai, refreshRinnai, toggleGarage, refreshRing, toggleSamsungTV, isLoading, getError } = useDeviceStore();
   const { cameras, getSnapshotUrl, getStreamUrl } = useCameras();
-  const [wemoLoading, setWemoLoading] = useState(false);
   const [garageImageError, setGarageImageError] = useState<string | null>(null);
   const [contactRefreshing, setContactRefreshing] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    const fetchWemoStatus = async () => {
-      setWemoLoading(true);
-      await fetchStatus(['wemo']);
-      if (!cancelled) {
-        setWemoLoading(false);
-      }
-    };
+    const fetchWemoStatus = () => { fetchStatus(['wemo']); };
 
     fetchStatus(['hue', 'rinnai', 'garage', 'samsung']);
     fetchStatus(['ring']);
@@ -38,28 +46,25 @@ export function ControlTab() {
     const ringInterval = setInterval(() => fetchStatus(['ring']), 30000);
     const wemoInterval = setInterval(fetchWemoStatus, 30000);
     return () => {
-      cancelled = true;
       clearInterval(fastInterval);
       clearInterval(ringInterval);
       clearInterval(wemoInterval);
     };
   }, [fetchStatus]);
 
-  if (loading && !status) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+  const wemoLoading = isLoading('wemo');
+  const hueLoading = isLoading('hue');
+  const rinnaiLoading = isLoading('rinnai');
+  const ringLoading = isLoading('ring');
+  const garageLoading = isLoading('garage');
+  const samsungLoading = isLoading('samsung');
 
-  if (error && !status) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-600">
-        Failed to load: {error}
-      </div>
-    );
-  }
+  const hueError = getError('hue');
+  const wemoError = getError('wemo');
+  const rinnaiError = getError('rinnai');
+  const ringError = getError('ring');
+  const garageError = getError('garage');
+  const samsungError = getError('samsung');
 
   const wemoDevices = status?.wemo ? Object.entries(status.wemo) : [];
   const wemoNames: Record<string, string> = {
@@ -115,66 +120,74 @@ export function ControlTab() {
           </h2>
         </div>
         <div className="p-4">
-          {status?.hue?.error && (
-            <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm">
-              {status.hue.error}
-            </div>
-          )}
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-medium text-gray-900">{status?.hue?.name || 'Light'}</div>
-              <div className="text-sm text-gray-500 mt-0.5">
-                {status?.hue?.error ? (
-                  <span className="flex items-center text-amber-600">
-                    <span className="w-2 h-2 bg-amber-400 rounded-full mr-1.5"></span>
-                    {status.hue.error}
-                  </span>
-                ) : status?.hue?.is_on ? (
-                  <span className="flex items-center">
-                    <span className="w-2 h-2 bg-green-400 rounded-full mr-1.5"></span>
-                    On · brightness {status.hue.brightness}
-                    {status?.hue?.timer_active && <span className="ml-2 text-blue-500">⏱ Timer active</span>}
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    <span className="w-2 h-2 bg-gray-300 rounded-full mr-1.5"></span>
-                    Off
-                  </span>
-                )}
+          {hueLoading && !status?.hue ? (
+            <SectionSpinner />
+          ) : hueError && !status?.hue ? (
+            <SectionError message={hueError} />
+          ) : (
+            <>
+              {status?.hue?.error && (
+                <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm">
+                  {status.hue.error}
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-gray-900">{status?.hue?.name || 'Light'}</div>
+                  <div className="text-sm text-gray-500 mt-0.5">
+                    {status?.hue?.error ? (
+                      <span className="flex items-center text-amber-600">
+                        <span className="w-2 h-2 bg-amber-400 rounded-full mr-1.5"></span>
+                        {status.hue.error}
+                      </span>
+                    ) : status?.hue?.is_on ? (
+                      <span className="flex items-center">
+                        <span className="w-2 h-2 bg-green-400 rounded-full mr-1.5"></span>
+                        On · brightness {status.hue.brightness}
+                        {status?.hue?.timer_active && <span className="ml-2 text-blue-500">⏱ Timer active</span>}
+                      </span>
+                    ) : (
+                      <span className="flex items-center">
+                        <span className="w-2 h-2 bg-gray-300 rounded-full mr-1.5"></span>
+                        Off
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={toggleHue}
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                    status?.hue?.is_on ? 'bg-blue-500' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${
+                      status?.hue?.is_on ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
               </div>
-            </div>
-            <button
-              onClick={toggleHue}
-              className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                status?.hue?.is_on ? 'bg-blue-500' : 'bg-gray-200'
-              }`}
-            >
-              <span
-                className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${
-                  status?.hue?.is_on ? 'translate-x-7' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-          {status?.hue?.is_on && !status?.hue?.error && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Brightness
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="254"
-                value={status.hue.brightness || 128}
-                onChange={(e) => setHueBrightness(parseInt(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>Dim</span>
-                <span className="font-medium text-gray-700">{status.hue.brightness || 128}</span>
-                <span>Bright</span>
-              </div>
-            </div>
+              {status?.hue?.is_on && !status?.hue?.error && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Brightness
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="254"
+                    value={status.hue.brightness || 128}
+                    onChange={(e) => setHueBrightness(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Dim</span>
+                    <span className="font-medium text-gray-700">{status.hue.brightness || 128}</span>
+                    <span>Bright</span>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>
@@ -195,13 +208,14 @@ export function ControlTab() {
         </div>
         <div className="divide-y divide-gray-50">
           {wemoLoading && wemoDevices.length === 0 && (
-            <div className="flex items-center justify-center px-4 py-6 text-sm text-gray-500">
-              Loading switches...
-            </div>
+            <SectionSpinner />
           )}
-          {!wemoLoading && wemoDevices.length === 0 && (
+          {wemoError && !wemoLoading && wemoDevices.length === 0 && (
+            <SectionError message={wemoError} />
+          )}
+          {!wemoLoading && !wemoError && wemoDevices.length === 0 && (
             <div className="px-4 py-6 text-sm text-gray-500">
-              {error ? 'Unable to load switches.' : 'No switches reported.'}
+              No switches reported.
             </div>
           )}
           {wemoDevices.map(([name, device]) => (
@@ -230,7 +244,21 @@ export function ControlTab() {
       </section>
 
       {/* Samsung TV */}
-      {status?.samsung?.configured && (
+      {samsungLoading && !status?.samsung ? (
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h3 className="font-semibold text-gray-900">Samsung TV</h3>
+          </div>
+          <SectionSpinner />
+        </section>
+      ) : samsungError && !status?.samsung ? (
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h3 className="font-semibold text-gray-900">Samsung TV</h3>
+          </div>
+          <SectionError message={samsungError} />
+        </section>
+      ) : status?.samsung?.configured && (
         <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900">Samsung TV</h3>
@@ -261,7 +289,27 @@ export function ControlTab() {
       )}
 
       {/* Garage doors */}
-      {status?.garage?.available && (
+      {garageLoading && !status?.garage ? (
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-800 flex items-center">
+              <span className="text-xl mr-2">🚗</span>
+              Garage doors
+            </h2>
+          </div>
+          <SectionSpinner />
+        </section>
+      ) : garageError && !status?.garage ? (
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-800 flex items-center">
+              <span className="text-xl mr-2">🚗</span>
+              Garage doors
+            </h2>
+          </div>
+          <SectionError message={garageError} />
+        </section>
+      ) : status?.garage?.available && (
         <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100">
             <h2 className="text-base font-semibold text-gray-800 flex items-center">
@@ -339,8 +387,14 @@ export function ControlTab() {
               {status.ring.configured === false ? 'Ring is not configured on this host.' : status.ring.error}
             </div>
           )}
-          {!status?.ring && (
-            <div className="px-4 py-3 text-sm text-gray-500">Loading contact sensors...</div>
+          {ringLoading && !status?.ring && (
+            <SectionSpinner />
+          )}
+          {ringError && !ringLoading && !status?.ring && (
+            <SectionError message={ringError} />
+          )}
+          {!ringLoading && !ringError && !status?.ring && (
+            <div className="px-4 py-3 text-sm text-gray-500">No contact sensors reported.</div>
           )}
           {status?.ring && contactSensors.length === 0 && !status.ring.error && (
             <div className="px-4 py-3 text-sm text-gray-500">No contact sensors reported.</div>
@@ -367,48 +421,58 @@ export function ControlTab() {
           <h2 className="text-base font-semibold text-gray-800 flex items-center">
             <span className="text-xl mr-2">🚿</span>
             Water heater
-            <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
-              status?.rinnai?.is_online ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-            }`}>
-              {status?.rinnai?.is_online ? 'Online' : 'Offline'}
-            </span>
+            {status?.rinnai && (
+              <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${
+                status?.rinnai?.is_online ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              }`}>
+                {status?.rinnai?.is_online ? 'Online' : 'Offline'}
+              </span>
+            )}
           </h2>
         </div>
         <div className="p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-gray-50 rounded-lg px-3 py-2">
-              <div className="text-gray-500">Set temperature</div>
-              <div className="font-semibold text-gray-900">{status?.rinnai?.set_temperature}°F</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg px-3 py-2">
-              <div className="text-gray-500">Outlet temperature</div>
-              <div className="font-semibold text-gray-900">{status?.rinnai?.outlet_temp}°F</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg px-3 py-2">
-              <div className="text-gray-500">Inlet temperature</div>
-              <div className="font-semibold text-gray-900">{status?.rinnai?.inlet_temp}°F</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg px-3 py-2">
-              <div className="text-gray-500">Recirculation</div>
-              <div className={`font-semibold ${status?.rinnai?.recirculation_enabled ? 'text-blue-600' : 'text-gray-900'}`}>
-                {status?.rinnai?.recirculation_enabled ? 'Running' : 'Stopped'}
+          {rinnaiLoading && !status?.rinnai ? (
+            <SectionSpinner />
+          ) : rinnaiError && !status?.rinnai ? (
+            <SectionError message={rinnaiError} />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="text-gray-500">Set temperature</div>
+                  <div className="font-semibold text-gray-900">{status?.rinnai?.set_temperature}°F</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="text-gray-500">Outlet temperature</div>
+                  <div className="font-semibold text-gray-900">{status?.rinnai?.outlet_temp}°F</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="text-gray-500">Inlet temperature</div>
+                  <div className="font-semibold text-gray-900">{status?.rinnai?.inlet_temp}°F</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="text-gray-500">Recirculation</div>
+                  <div className={`font-semibold ${status?.rinnai?.recirculation_enabled ? 'text-blue-600' : 'text-gray-900'}`}>
+                    {status?.rinnai?.recirculation_enabled ? 'Running' : 'Stopped'}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            <button
-              onClick={() => circulateRinnai(5)}
-              className="px-4 py-2.5 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              Run 5 min circulation
-            </button>
-            <button
-              onClick={refreshRinnai}
-              className="px-4 py-2.5 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-            >
-              Maintenance refresh
-            </button>
-          </div>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <button
+                  onClick={() => circulateRinnai(5)}
+                  className="px-4 py-2.5 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Run 5 min circulation
+                </button>
+                <button
+                  onClick={refreshRinnai}
+                  className="px-4 py-2.5 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                >
+                  Maintenance refresh
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
