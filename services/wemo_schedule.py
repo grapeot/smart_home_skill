@@ -9,6 +9,8 @@ from pathlib import Path
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from services.wemo_service import wemo_service
+
 logger = logging.getLogger(__name__)
 
 # Pacific timezone
@@ -67,30 +69,23 @@ class WemoScheduleManager:
     def execute_task(self, device_name: str, action: str):
         """
         Execute one scheduled task.
-        
+
         Args:
             device_name: Device name.
             action: Action, either on or off.
         """
-        device_name_lower = device_name.lower()
-        
-        if device_name_lower not in self.devices:
-            logger.error(f"Device not registered: {device_name}")
+        if action == 'on':
+            result = wemo_service.turn_on(device_name)
+        elif action == 'off':
+            result = wemo_service.turn_off(device_name)
+        else:
+            logger.error(f"Unknown scheduled action: {action} for {device_name}")
             return
-        
-        device = self.devices[device_name_lower]
-        
-        try:
-            if action == 'on':
-                device.on()
-                logger.info(f"Scheduled task executed: {device_name} on")
-            elif action == 'off':
-                device.off()
-                logger.info(f"Scheduled task executed: {device_name} off")
-        except Exception as e:
-            logger.error(f"Error executing task ({device_name} {action}): {str(e)}")
-            import traceback
-            traceback.print_exc()
+
+        if result.get("status") == "success":
+            logger.info(f"Scheduled task executed: {device_name} {action}")
+        else:
+            logger.error(f"Scheduled task failed: {device_name} {action}: {result.get('message')}")
     
     def start(self):
         """Start the scheduled task manager."""
