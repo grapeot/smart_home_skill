@@ -21,9 +21,10 @@ class FakeWemoDevice:
             raise TimeoutError("old endpoint timed out")
         self.state = 0
 
-    def get_state(self):
+    def get_state(self, force_update=False):
         if "get_state" in self.fail_on:
             raise TimeoutError("old endpoint timed out")
+        self.last_force_update = force_update
         return self.state
 
 

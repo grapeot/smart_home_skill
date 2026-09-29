@@ -139,11 +139,11 @@ class WemoService:
         except Exception as second_error:
             return {"status": "error", "message": str(second_error)}
     
-    def get_all_status(self) -> dict:
+    def get_all_status(self, force_update: bool = False) -> dict:
         result = {}
         for name, device in list(self.devices.items()):
             try:
-                state = device.get_state()
+                state = device.get_state(force_update=force_update)
                 result[name] = {
                     "name": name,
                     "is_on": _as_switch_state(state),
@@ -153,7 +153,7 @@ class WemoService:
                 refreshed_device = self.refresh_device(name)
                 if refreshed_device:
                     try:
-                        state = refreshed_device.get_state()
+                        state = refreshed_device.get_state(force_update=force_update)
                         result[name] = {
                             "name": name,
                             "is_on": _as_switch_state(state),

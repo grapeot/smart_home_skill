@@ -28,7 +28,7 @@ async def collect_device_states():
             "brightness": hue_status.get("brightness") if is_on else 0
         })
     
-    wemo_status = wemo_service.get_all_status()
+    wemo_status = await asyncio.to_thread(wemo_service.get_all_status, force_update=True)
     for name, status in wemo_status.items():
         if "error" not in status:
             save_device_state("wemo", name, {
